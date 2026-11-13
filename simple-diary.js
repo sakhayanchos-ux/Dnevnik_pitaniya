@@ -4,8 +4,18 @@
   const root=document.getElementById("app");
   const toastEl=document.getElementById("toast");
   const mealNames={breakfast:"Завтрак",snack1:"Первый перекус",lunch:"Обед",snack2:"Второй перекус",dinner:"Ужин",other:"Другое"};
-  const slots=[["breakfast","01","☀️"],["snack1","02","🍎"],["lunch","03","🥗"],["snack2","04","🍓"],["dinner","05","🌙"]];
+  const slots=[["breakfast","01"],["snack1","02"],["lunch","03"],["snack2","04"],["dinner","05"]];
   const ratings={good:"Хорошо",improve:"Улучшить",attention:"Внимание"};
+  const icon=(name)=>'<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.55" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+({
+    book:'<rect x="4" y="3.8" width="16" height="16.4" rx="1.8"/><path d="M8.5 3.8v16.4M11.5 8h5M11.5 12h5M11.5 16h3"/>',
+    chart:'<path d="M4 19.5h16M6.5 16V10M12 16V5M17.5 16V8"/><path d="M5 18h14"/>',
+    user:'<circle cx="12" cy="8.3" r="3.3"/><path d="M5.3 20c.2-3.8 2.7-5.7 6.7-5.7s6.5 1.9 6.7 5.7"/>',
+    drop:'<path d="M12 2.5C9.2 7 6.1 10 6.1 13.7a5.9 5.9 0 0 0 11.8 0C17.9 10 14.8 7 12 2.5Z"/>',
+    leaf:'<path d="M20.2 3.8c-8.2-.1-14.5 3.5-14.5 10.1a6.1 6.1 0 0 0 6.1 6.1c6.7 0 9.1-7.1 8.4-16.2Z"/><path d="M4.3 20c3.5-6.3 7.5-8.8 12-11.4"/>',
+    camera:'<path d="M3 8.2h4l1.8-2.5h6.4L17 8.2h4v11.2H3Z"/><circle cx="12" cy="13.9" r="3.25"/>',
+    plus:'<path d="M12 4v16M4 12h16"/>',
+    chevron:'<path d="m9 5 7 7-7 7"/>'
+  }[name]||'')+'</svg>';
   const S={user:null,profile:null,people:{},consultants:[],clients:[],mode:"client",tab:"diary",date:localDate(),selected:null,day:null,meals:[],mealReviews:[],dayReviews:[],weights:[],photo:{},openMeal:false,mealType:"breakfast",authMode:"login",recovery:location.hash.includes("type=recovery"),busy:false};
   const esc=x=>String(x??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   const num=x=>Number(x||0);
@@ -34,14 +44,14 @@
     return `<label class="field"><span>${title}</span><input name="${name}" type="${type}" value="${esc(value)}" ${attrs}></label>`;
   }
   function authView(){
-    if(S.recovery)return `<div class="auth-screen"><div class="auth-card"><div class="logo">✿</div><h1>Новый пароль</h1><p>Придумайте пароль для входа в дневник.</p><form id="newPasswordForm">${formField("newPassword","Новый пароль","password","","required minlength=8 autocomplete=new-password")}${formField("againPassword","Повторите пароль","password","","required minlength=8 autocomplete=new-password")}<button class="primary full">Сохранить пароль</button></form></div></div>`;
+    if(S.recovery)return `<div class="auth-screen"><div class="auth-card"><div class="logo">Д</div><h1>Новый пароль</h1><p>Придумайте пароль для входа в дневник.</p><form id="newPasswordForm">${formField("newPassword","Новый пароль","password","","required minlength=8 autocomplete=new-password")}${formField("againPassword","Повторите пароль","password","","required minlength=8 autocomplete=new-password")}<button class="primary full">Сохранить пароль</button></form></div></div>`;
     const isRegister=S.authMode==="register",isReset=S.authMode==="reset";
     return `<div class="auth-screen"><div class="auth-card"><div class="logo">✿</div><h1>Дневник питания</h1><p>Открой, заполни и получи рекомендации консультанта.</p><h2>${isReset?"Восстановление пароля":isRegister?"Регистрация":"Вход"}</h2><form id="${isReset?"resetForm":"authForm"}">${isRegister?formField("name","Имя и фамилия","text","","required maxlength=120"):""}${formField("email","Электронная почта","email","","required autocomplete=email")}${isReset?"":formField("password","Пароль","password","","required minlength=6 autocomplete=current-password")}<button class="primary full">${isReset?"Отправить ссылку":isRegister?"Зарегистрироваться":"Войти"}</button></form><div class="auth-links">${isReset?'<button data-action="login">← Назад ко входу</button>':`<button data-action="${isRegister?"login":"register"}">${isRegister?"Уже есть аккаунт? Войти":"Создать аккаунт"}</button>${isRegister?"":'<button data-action="reset">Забыли пароль?</button>'}`}</div></div></div>`;
   }
   function top(){
     const coach=S.mode==="coach";
-    return `<header class="top"><div class="brand"><span class="logo-mini">✿</span><div><strong>Дневник питания</strong><small>Каждый день — просто</small></div></div><button class="quiet" data-action="logout">Выйти</button></header>
-    <div class="switch"><button class="${coach?"":"selected"}" data-action="clientMode">Мой дневник</button><button class="${coach?"selected":""}" data-action="coachMode">Я консультант</button></div>`;
+    return `<header class="top"><div class="brand"><span class="logo-mini">Д</span><div><strong>Дневник питания</strong><small>ЛИЧНЫЙ ЖУРНАЛ</small></div></div><button class="quiet" data-action="logout">Выйти</button></header>
+    <div class="switch"><button class="${coach?"":"selected"}" data-action="clientMode">Мой дневник</button><button class="${coach?"selected":""}" data-action="coachMode">Консультант</button></div>`;
   }
   function coachPanel(){
     let h=`<section class="coach-panel"><div class="section-title"><h2>Мои клиенты</h2><span>${S.clients.length}</span></div>`;
@@ -51,7 +61,7 @@
     return h;
   }
   function bottom(){
-    return `<nav class="bottom-nav" aria-label="Разделы"><button data-action="tab" data-tab="diary" class="${S.tab==="diary"?"selected":""}"><span>▦</span>Дневник</button><button data-action="tab" data-tab="results" class="${S.tab==="results"?"selected":""}"><span>▥</span>Результаты</button><button data-action="tab" data-tab="profile" class="${S.tab==="profile"?"selected":""}"><span>♡</span>Профиль</button></nav>`;
+    return `<nav class="bottom-nav" aria-label="Разделы"><button data-action="tab" data-tab="diary" class="${S.tab==="diary"?"selected":""}">${icon("book")}Дневник</button><button data-action="tab" data-tab="results" class="${S.tab==="results"?"selected":""}">${icon("chart")}Результаты</button><button data-action="tab" data-tab="profile" class="${S.tab==="profile"?"selected":""}">${icon("user")}Профиль</button></nav>`;
   }
   function photoItem(m){
     const reviews=S.mealReviews.filter(r=>r.meal_id===m.id);
@@ -64,12 +74,12 @@
     return h;
   }
   function glassSvg(percent){
-    const line=Math.min(124,15+1.09*(100-percent));
+    const line=141-1.27*Math.max(0,Math.min(100,percent));
     return `<svg viewBox="0 0 120 145" role="img" aria-label="Вода ${percent}%"><defs><clipPath id="cup"><path d="M24 11 H96 L88 131 Q60 141 32 131 Z"/></clipPath></defs><path d="M24 11 H96 L88 131 Q60 141 32 131 Z" fill="#fff" stroke="#729CAA" stroke-width="3"/><g clip-path="url(#cup)"><rect x="20" y="${line}" width="80" height="145" fill="#729CAA"/><path d="M20 ${line} Q40 ${line-4} 60 ${line} T100 ${line}" fill="none" stroke="#0B4461" stroke-width="2"/></g></svg>`;
   }
   function proteinSvg(percent){
     const dash=(Math.min(100,percent)/100*276.46).toFixed(1);
-    return `<svg viewBox="0 0 120 120" role="img" aria-label="Белок ${percent}%"><circle cx="60" cy="60" r="44" fill="none" stroke="#D7E5EB" stroke-width="12"/><circle cx="60" cy="60" r="44" fill="none" stroke="#0B4461" stroke-width="12" stroke-linecap="round" stroke-dasharray="${dash} 276.46" transform="rotate(-90 60 60)"/><text x="60" y="67" font-size="23" font-weight="800" text-anchor="middle" fill="#0B4461">${percent}%</text></svg>`;
+    return `<svg viewBox="0 0 120 120" role="img" aria-label="Белок ${percent}%"><circle cx="60" cy="60" r="44" fill="none" stroke="#D7E5EB" stroke-width="8"/><circle cx="60" cy="60" r="44" fill="none" stroke="#0B4461" stroke-width="8" stroke-linecap="${percent?"round":"butt"}" stroke-dasharray="${dash} 276.46" transform="rotate(-90 60 60)"/><text x="60" y="67" font-size="23" font-weight="800" text-anchor="middle" fill="#0B4461">${percent}%</text></svg>`;
   }
   function diaryView(){
     const coach=S.mode==="coach",p=currentProfile(),wGoal=waterGoal(p),pGoal=proteinGoal(p),water=num(S.day?.water_ml),protein=dayProtein(),wp=wGoal?Math.min(100,Math.round(100*water/wGoal)):0,pp=pGoal?Math.min(100,Math.round(100*protein/pGoal)):0;
@@ -77,23 +87,23 @@
     let h=`<div class="page-heading"><div><div class="eyebrow">${coach?"ДНЕВНИК КЛИЕНТА":"МОЙ ДНЕВНИК"}</div><h1>${coach?esc(who(S.selected)):"Привет"+(cleanName(p?.display_name)?`, ${esc(cleanName(p.display_name).split(" ")[0])}`:"")+"!"}</h1><p>Питание, вода и самочувствие за день</p></div><span class="state ${state}">${state==="done"?"Проверено":state==="waiting"?"Ждёт проверки":"Нет записей"}</span></div>
       <div class="date-bar"><button data-action="prevDay">‹</button><label><span>Дата дневника</span><input type="date" id="diaryDate" value="${esc(S.date)}"></label><button data-action="nextDay">›</button></div>
       <div class="indicators">
-        <section class="indicator"><div class="indicator-title"><strong>💧 Вода</strong><span>${wp}%</span></div><div class="graphic">${glassSvg(wp)}<div><b>${water.toLocaleString("ru-RU")} мл</b><small>${wGoal?`из ${wGoal.toLocaleString("ru-RU")} мл`:"Укажите вес"}</small></div></div>
+        <section class="indicator"><div class="indicator-title"><strong>${icon("drop")} Вода</strong><span>${wp}%</span></div><div class="graphic">${glassSvg(wp)}<div><b>${water.toLocaleString("ru-RU")} мл</b><small>${wGoal?`из ${wGoal.toLocaleString("ru-RU")} мл`:"Укажите вес"}</small></div></div>
           ${coach?"":`<div class="water-buttons"><button data-action="waterQuick" data-ml="100">+100</button><button data-action="waterQuick" data-ml="200">+200</button><button data-action="waterQuick" data-ml="250">+250</button></div><form id="waterForm" class="water-form"><input type="number" name="water" aria-label="Миллилитры за день" min="0" max="15000" value="${water}"><button class="secondary">Записать</button></form>`}
         </section>
-        <section class="indicator"><div class="indicator-title"><strong>🥚 Белок</strong><span>${pp}%</span></div><div class="graphic">${proteinSvg(pp)}<div><b>${protein} г</b><small>${pGoal?`из ${pGoal} г`:"Нет цели"}</small>${pGoal?`<small>Осталось ${Math.max(0,Math.round((pGoal-protein)*10)/10)} г</small>`:""}</div></div><p class="explain">Белок из записей о еде</p></section>
+        <section class="indicator"><div class="indicator-title"><strong>${icon("leaf")} Белок</strong><span>${pp}%</span></div><div class="graphic">${proteinSvg(pp)}<div><b>${protein} г</b><small>${pGoal?`из ${pGoal} г`:"Нет цели"}</small>${pGoal?`<small>Осталось ${Math.max(0,Math.round((pGoal-protein)*10)/10)} г</small>`:""}</div></div><p class="explain">Белок из записей о еде</p></section>
       </div>`;
     if(!coach&&(!p?.weight_kg||!p?.goal))h+=`<div class="hint">Укажите вес и цель — рассчитаем воду и белок. <button data-action="tab" data-tab="profile">Открыть профиль →</button></div>`;
-    h+=`<section class="meal-section"><div class="section-title"><div><h2>Моё питание</h2><p>Пять приёмов пищи</p></div>${coach?"":'<button class="primary compact" data-action="openMeal" data-type="breakfast">+ Фото еды</button>'}</div>`;
-    for(const [type,number,emoji] of slots){
+    h+=`<section class="meal-section"><div class="section-title"><div><h2>Моё питание</h2><p>Пять приёмов пищи</p></div>${coach?"":'<button class="primary compact" data-action="openMeal" data-type="breakfast">${icon("camera")} Добавить фото</button>'}</div>`;
+    for(const [type,number] of slots){
       const entries=S.meals.filter(m=>m.meal_type===type);
-      h+=`<article class="meal-slot"><div class="slot-header"><span class="slot-number">${number}</span><span class="slot-emoji">${emoji}</span><strong>${mealNames[type]}</strong>${entries.length?`<span class="count">${entries.length}</span>`:""}${coach?"":`<button data-action="openMeal" data-type="${type}" class="plus" aria-label="Добавить запись">+</button>`}</div>`;
+      h+=`<article class="meal-slot"><div class="slot-header"><span class="slot-number">${number}</span><strong>${mealNames[type]}</strong>${entries.length?`<span class="count">${entries.length}</span>`:""}${coach?"":`<button data-action="openMeal" data-type="${type}" class="plus" aria-label="Добавить запись">${icon("plus")}</button>`}</div>`;
       h+=entries.length?entries.map(photoItem).join(""):`<p class="slot-empty">${coach?"Пока без записи":"Нажмите +, чтобы добавить фото"}</p>`;
       h+="</article>";
     }
     const others=S.meals.filter(m=>m.meal_type==="other");
-    if(others.length)h+=`<article class="meal-slot"><div class="slot-header"><span class="slot-emoji">🍽️</span><strong>Дополнительно</strong></div>${others.map(photoItem).join("")}</article>`;
+    if(others.length)h+=`<article class="meal-slot"><div class="slot-header"><strong>Дополнительно</strong></div>${others.map(photoItem).join("")}</article>`;
     if(!coach){
-      h+='<button class="primary full add-photo" data-action="openMeal" data-type="breakfast">📷 Добавить фото питания</button>';
+
       if(S.openMeal)h+=`<section class="new-entry" id="newEntry"><div class="section-title"><h2>Добавить питание</h2><button class="close" data-action="closeMeal">×</button></div><form id="mealForm">
         <label class="field"><span>Приём пищи</span><select name="type">${Object.entries(mealNames).map(([key,label])=>`<option value="${key}" ${key===S.mealType?"selected":""}>${label}</option>`).join("")}</select></label>
         <label class="field"><span>Фото еды *</span><input type="file" name="photo" accept="image/*" required></label><div id="photoPreview" class="photo-preview" hidden></div>
@@ -112,7 +122,7 @@
     h+="</section>";
     if(coach&&S.day){
       const own=S.dayReviews.find(r=>r.consultant_id===S.user.id);
-      h+=`<section class="card"><h2>Проверка консультанта</h2><form id="dayReviewForm"><div class="rating-row">${Object.entries(ratings).map(([key,label])=>`<label class="${key}"><input type="radio" name="rating" value="${key}" ${(own?.rating||"good")===key?"checked":""}>${label}</label>`).join("")}</div><label class="field"><span>Рекомендации (по желанию)</span><textarea name="comment" rows="3" maxlength="4000" placeholder="Что можно улучшить?">${esc(own?.comment==="Проверено"?"":own?.comment||"")}</textarea></label><button class="primary full">✓ Завершить проверку</button></form></section>`;
+      h+=`<section class="card"><h2>Проверка консультанта</h2><form id="dayReviewForm"><div class="rating-row">${Object.entries(ratings).map(([key,label])=>`<label class="${key}"><input type="radio" name="rating" value="${key}" ${(own?.rating||"good")===key?"checked":""}>${label}</label>`).join("")}</div><label class="field"><span>Рекомендации (по желанию)</span><textarea name="comment" rows="3" maxlength="4000" placeholder="Что можно улучшить?">${esc(own?.comment==="Проверено"?"":own?.comment||"")}</textarea></label><button class="primary full">Завершить проверку</button></form></section>`;
     }
     if(S.dayReviews.length)h+=`<section class="card"><h2>Рекомендации консультанта</h2>${S.dayReviews.map(r=>`<div class="review-label ${esc(r.rating||"good")}"><b>${esc(who(r.consultant_id))} · ${esc(ratings[r.rating]||"Проверено")}</b>${r.comment&&r.comment!=="Проверено"?`<p>${esc(r.comment)}</p>`:""}</div>`).join("")}</section>`;
     return h;
