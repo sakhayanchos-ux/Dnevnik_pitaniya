@@ -239,7 +239,7 @@
     return h;
   }
 
-  const developerFooter=()=>'<footer class="developer-credit"><span>Разработчик · <strong>sahayana</strong></span><a href="https://wa.me/79142609616" target="_blank" rel="noopener noreferrer" aria-label="Написать разработчику в WhatsApp по номеру +7 914 260-96-16">+7 914 260-96-16</a></footer>';
+  const developerFooter=()=>'<footer class="developer-credit"><span>Разработчик · <strong>Сахаяна Скрябина</strong></span><a href="https://wa.me/79142609616" target="_blank" rel="noopener noreferrer" aria-label="Написать разработчику в WhatsApp по номеру +7 914 260-96-16">+7 914 260-96-16</a></footer>';
   function render(){
     if(!S.user||S.recovery){root.innerHTML=authView()+developerFooter();return}
     if(S.denied){
