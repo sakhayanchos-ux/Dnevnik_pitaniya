@@ -1,0 +1,25 @@
+name: Проверка дневника питания
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Проверить синтаксис JavaScript
+        run: node --check app.js
+      - name: Проверить основные файлы
+        run: |
+          test -s index.html
+          test -s styles.css
+          grep -q 'resetPasswordForEmail' app.js
+          grep -q 'newPasswordForm' app.js
+          grep -q '20261113-color' index.html
