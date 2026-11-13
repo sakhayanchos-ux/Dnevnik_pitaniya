@@ -1,4 +1,13 @@
 (async function diaryApp(){
+  // Read the callback URL BEFORE loading Supabase: its auth initializer may
+  // consume/clear the fragment before application state is created.
+  const callbackHash = new URLSearchParams(location.hash.slice(1));
+  const callbackQuery = new URLSearchParams(location.search);
+  const recoveryFromUrl = callbackHash.get("type")==="recovery" ||
+    callbackQuery.get("type")==="recovery" ||
+    (callbackHash.has("access_token") && callbackQuery.get("recovery")==="1");
+  const recoveryErrorFromUrl = callbackHash.get("error_description") ||
+    callbackQuery.get("error_description");
   const {createClient}=await import("https://esm.sh/@supabase/supabase-js@2.57.0");
   const db=createClient("https://xprobrrrpybmzbucakws.supabase.co","sb_publishable_UETDRxFcw79NwwBmvjI4sw_7F5y5B28");
   const APP_URL="https://sakhayanchos-ux.github.io/Dnevnik_pitaniya/";
@@ -17,7 +26,7 @@
     plus:'<path d="M12 4v16M4 12h16"/>',
     chevron:'<path d="m9 5 7 7-7 7"/>'
   }[name]||'')+'</svg>';
-  const S={user:null,profile:null,people:{},consultants:[],clients:[],mode:"client",tab:"diary",date:localDate(),selected:null,day:null,meals:[],mealReviews:[],dayReviews:[],weights:[],photo:{},openMeal:false,mealType:"breakfast",authMode:"login",recovery:location.hash.includes("type=recovery"),busy:false};
+  const S={user:null,profile:null,people:{},consultants:[],clients:[],mode:"client",tab:"diary",date:localDate(),selected:null,day:null,meals:[],mealReviews:[],dayReviews:[],weights:[],photo:{},openMeal:false,mealType:"breakfast",authMode:"login",recovery:recoveryFromUrl,busy:false};
   const esc=x=>String(x??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   const num=x=>Number(x||0);
   const cleanName=x=>/^(?:phone[._ -]?[0-9+]+|[+0-9][0-9 .-]{7,})$/i.test(String(x||""))?"":String(x||"");
@@ -372,7 +381,22 @@
       else if(event==="SIGNED_OUT"){S.user=null;S.recovery=false;render()}
     });
     const {data:{session},error}=await db.auth.getSession();if(error)throw error;
-    if(session?.user){if(S.recovery){S.user=session.user;render()}else await enter(session.user)}
-    else render();
+    if(recoveryErrorFromUrl){
+      S.recovery=false;S.authMode="reset";
+      history.replaceState(null,"",location.pathname);
+      render();
+      notify("Ссылка восстановления недействительна или устарела. Запросите новое письмо.");
+    }else if(S.recovery){
+      if(session?.user){
+        S.user=session.user;render();
+      }else{
+        S.recovery=false;S.authMode="reset";render();
+        notify("Не удалось подтвердить ссылку. Запросите новое письмо и откройте его только один раз.");
+      }
+    }else if(session?.user){
+      await enter(session.user);
+    }else{
+      render();
+    }
   }catch(e){showError(e);root.innerHTML=`<div class="auth-screen"><div class="auth-card"><h1>Не удалось открыть дневник</h1><p>${esc(e.message||String(e))}</p><button class="primary" onclick="location.reload()">Повторить</button></div></div>`}
 })();
