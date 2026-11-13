@@ -621,3 +621,16 @@ body[data-app="coach"] .container{max-width:720px}
 .clients-header h1{font-family:Georgia,"Times New Roman",serif;font-size:37px;font-weight:400;letter-spacing:-1px;margin:0;line-height:1.12;color:#332d33}
 .clients-header .inbox-refresh{height:40px;width:40px}
 @media(max-width:420px){.clients-header h1{font-size:34px}}
+
+/* Responsive, app-like touch navigation on iPhone and Android */
+.bottom-nav button{
+  touch-action:manipulation;
+  -webkit-tap-highlight-color:transparent;
+  min-height:61px;
+  transition:color 100ms ease,background-color 100ms ease;
+  user-select:none;
+  -webkit-user-select:none;
+}
+.bottom-nav button:active{color:#153e57;background:#eef4f6!important}
+.bottom-nav button.selected{color:#153e57}
+@media (max-width:420px){.bottom-nav button{min-height:60px}}
