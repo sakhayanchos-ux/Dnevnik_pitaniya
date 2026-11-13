@@ -485,3 +485,15 @@ body{
 .recovery-fallback form{margin-top:14px}
 .recovery-fallback textarea{font-size:12px!important;line-height:1.45;resize:vertical;overflow-wrap:anywhere}
 .recovery-fallback .secret-hint{font-size:11px;color:#927c85}
+
+/* Illustrated nutrition diary identity */
+.logo-mini,.auth-card .logo{
+  border:0!important;background:transparent!important;
+  width:44px!important;height:44px!important;
+  border-radius:11px!important;overflow:hidden;
+  padding:0;box-shadow:none!important;
+}
+.auth-card .logo{width:68px!important;height:68px!important;border-radius:16px!important}
+.app-logo{display:block;width:100%;height:100%;object-fit:cover;border-radius:inherit}
+.brand .logo-mini{flex:none}
+.loading-screen .app-logo{width:72px;height:72px;border-radius:15px;margin:auto}
