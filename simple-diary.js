@@ -27,11 +27,13 @@
     camera:'<path d="M3 8.2h4l1.8-2.5h6.4L17 8.2h4v11.2H3Z"/><circle cx="12" cy="13.9" r="3.25"/>',
     plus:'<path d="M12 4v16M4 12h16"/>',
     chevron:'<path d="m9 5 7 7-7 7"/>',
+    send:'<path d="m21 3-8.5 18-2.8-7.7L2 10.5 21 3Z"/><path d="m9.7 13.3 4.8-4.8"/>',
+    check:'<circle cx="12" cy="12" r="9"/><path d="m8 12 2.5 2.5L16 9"/>',
     copy:'<rect x="8" y="8" width="12" height="13" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h2"/>',
     inbox:'<path d="M4 4h16v15H4V4Z"/><path d="M4 14h5l2 3h2l2-3h5"/>',
     refresh:'<path d="M20 7v5h-5"/><path d="M4 17v-5h5"/><path d="M5.5 9a7.2 7.2 0 0 1 12.6-2L20 12M4 12l1.9 5a7.2 7.2 0 0 0 12.6-2"/>'
   }[name]||'')+'</svg>';
-  const S={user:null,profile:null,people:{},consultants:[],clients:[],mode:isCoachApp?"coach":"client",denied:false,tab:isCoachApp?"inbox":"diary",inboxFilter:"pending",inbox:[],clientWeights:{},viewingClient:false,date:localDate(),selected:null,day:null,meals:[],mealReviews:[],dayReviews:[],weights:[],photo:{},openMeal:false,mealType:"breakfast",authMode:"login",recovery:recoveryFromUrl,busy:false,navSeq:0};
+  const S={user:null,profile:null,people:{},consultants:[],clients:[],mode:isCoachApp?"coach":"client",denied:false,tab:isCoachApp?"inbox":"diary",inboxFilter:"pending",inbox:[],submission:null,clientRequest:null,clientRequests:[],clientWeights:{},viewingClient:false,date:localDate(),selected:null,day:null,meals:[],mealReviews:[],dayReviews:[],weights:[],photo:{},openMeal:false,mealType:"breakfast",authMode:"login",recovery:recoveryFromUrl,busy:false,navSeq:0};
   const esc=x=>String(x??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   const num=x=>Number(x||0);
   const cleanName=x=>/^(?:phone[._ -]?[0-9+]+|[+0-9][0-9 .-]{7,})$/i.test(String(x||""))?"":String(x||"");
@@ -41,7 +43,7 @@
   const ok=async p=>{const {data,error}=await p;if(error)throw error;return data};
   const showError=e=>{console.error(e);const m=e?.message||String(e);notify(/Invalid login credentials/i.test(m)?"Неверная почта или пароль. Нажмите «Забыли пароль?»":/User already registered/i.test(m)?"Аккаунт уже есть. Выберите «Войти» или восстановите пароль.":/Email not confirmed/i.test(m)?"Подтвердите электронную почту":m)};
   async function guarded(fn){if(S.busy)return;S.busy=true;try{await fn()}catch(e){showError(e)}finally{S.busy=false}}
-  function localDate(){return new Date().toLocaleDateString("sv-SE")}
+  function localDate(){return new Date().toLocaleDateString("sv-SE",{timeZone:"Asia/Yakutsk"})}
   function dateAdd(date,n){const [y,m,d]=date.split("-").map(Number);return new Date(Date.UTC(y,m-1,d+n)).toISOString().slice(0,10)}
   const currentId=()=>S.mode==="coach"?S.selected:S.user?.id;
   const currentProfile=()=>S.mode==="coach"?S.people[S.selected]:S.profile;
@@ -51,6 +53,7 @@
   const dayProtein=()=>Math.round(S.meals.reduce((a,m)=>a+num(m.protein_g),0)*10)/10;
   const reviewStatus=()=>{
     if(!S.meals.length&&!S.day)return "empty";
+    if(!S.submission)return "draft";
     const latest=[...S.dayReviews].sort((a,b)=>String(b.updated_at).localeCompare(String(a.updated_at)))[0];
     const modified=Math.max(Date.parse(S.day?.updated_at||"")||0,...S.meals.map(m=>Date.parse(m.created_at||"")||0),0);
     return latest&&Date.parse(latest.updated_at)>=modified?"done":"waiting";
@@ -93,7 +96,7 @@
     </div>
     <div class="inbox-items">`;
   if(!filtered.length){
-    h+=`<div class="inbox-empty">${icon("inbox")}<h2>${S.inboxFilter==="done"?"Пока нет проверенных дневников":S.inboxFilter==="pending"?"Пока нет дневников для проверки":"Здесь появятся дневники клиентов"}</h2><p>${S.clients.length?"Когда клиент сохранит питание за день, его запись появится здесь.":"Когда клиент подключится по вашему коду и начнёт заполнять питание, записи появятся здесь."}</p></div>`;
+    h+=`<div class="inbox-empty">${icon("inbox")}<h2>${S.inboxFilter==="done"?"Пока нет проверенных дневников":S.inboxFilter==="pending"?"Пока нет дневников для проверки":"Здесь появятся дневники клиентов"}</h2><p>${S.clients.length?"Когда клиент отправит дневник или он поступит автоматически в 22:00, запись появится здесь.":"Когда клиент подключится по вашему коду и начнёт заполнять питание, записи появятся здесь."}</p></div>`;
   }else{
     h+=filtered.map(x=>{
       const date=new Date(x.log_date+"T12:00:00").toLocaleDateString("ru-RU",{day:"numeric",month:"long",year:"numeric"});
@@ -105,12 +108,12 @@
       </button>`;
     }).join("");
   }
-  h+=`</div><div class="inbox-footer"><p>Записи поступают автоматически после сохранения. Здесь отображаются последние 300 дней.</p></div></section>`;
+  h+=`</div><div class="inbox-footer"><p>Здесь только отправленные дневники: вручную или автоматически в 22:00. Показаны последние 300 записей.</p></div></section>`;
   return h;
 }
   function coachClientsView(){
   const clients=[...S.clients].sort((a,b)=>who(a.client_id).localeCompare(who(b.client_id),"ru"));
-  let h='<section class="coach-list-page"><div class="eyebrow">КОНСУЛЬТАНТ</div><div class="clients-header"><h1>Мои клиенты</h1><button class="inbox-refresh" data-action="refreshClients" title="Обновить имена клиентов" aria-label="Обновить список клиентов">'+icon("refresh")+'</button></div><p class="subtle">Нажми на имя, чтобы открыть дневник и посмотреть питание.</p><div class="simple-list">';
+  let h='<section class="coach-list-page"><div class="eyebrow">КОНСУЛЬТАНТ</div><div class="clients-header"><h1>Мои клиенты</h1><button class="inbox-refresh" data-action="refreshClients" title="Обновить имена клиентов" aria-label="Обновить список клиентов">'+icon("refresh")+'</button></div><p class="subtle">Нажми на имя, чтобы посмотреть клиента или попросить отправить дневник.</p><div class="simple-list">';
   if(!clients.length)h+='<div class="simple-list-empty"><h2>Пока нет клиентов</h2><p>Пригласи их по коду в разделе «Мой профиль».</p></div>';
   else h+=clients.map(l=>{
     const last=S.inbox.find(d=>d.client_id===l.client_id);
@@ -162,10 +165,44 @@
     const dash=(Math.min(100,percent)/100*276.46).toFixed(1);
     return `<svg viewBox="0 0 120 120" role="img" aria-label="Белок ${percent}%"><circle cx="60" cy="60" r="44" fill="none" stroke="#D7E5EB" stroke-width="8"/><circle cx="60" cy="60" r="44" fill="none" stroke="#0B4461" stroke-width="8" stroke-linecap="${percent?"round":"butt"}" stroke-dasharray="${dash} 276.46" transform="rotate(-90 60 60)"/><text x="60" y="67" font-size="23" font-weight="800" text-anchor="middle" fill="#0B4461">${percent}%</text></svg>`;
   }
+  function sendPanel(){
+  const sent=!!S.submission,hasMeals=S.meals.length>0,linked=S.consultants.length>0;
+  let h='<section class="card send-diary-card"><h2>Отправить дневник</h2>';
+  if(sent){
+    const method=S.submission.mode==="auto"?"Автоматически в 22:00":"Вручную";
+    const when=new Date(S.submission.submitted_at).toLocaleString("ru-RU",{timeZone:"Asia/Yakutsk",day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"});
+    h+=`<p class="sent-success">${icon("check")} Дневник отправлен консультанту</p><p class="subtle">${method} · ${esc(when)} (Якутск). Если дополнить дневник, консультант увидит новые записи.</p>`;
+  }else if(!linked){
+    h+='<p class="subtle">Сначала подключи консультанта в своём профиле.</p><button class="primary full" data-action="tab" data-tab="profile">Подключить консультанта</button>';
+  }else if(!hasMeals){
+    h+='<p class="subtle">Добавь хотя бы один приём пищи с фотографией.</p><button class="primary full" data-action="openMeal" data-type="breakfast">Добавить питание</button>';
+  }else{
+    h+='<p class="subtle">Дневник сохранён, но ещё не отправлен консультанту.</p><button class="primary full" data-action="sendDiary">'+icon("send")+' Отправить консультанту</button>';
+    if(S.date===localDate())h+='<p class="auto-note">Если не отправишь сама, заполненный дневник отправится автоматически в 22:00 по Якутску.</p>';
+  }
+  return h+'</section>';
+}
+  function coachClientCard(){
+  const id=S.selected,p=S.people[id]||{},today=localDate(),entry=S.inbox.find(x=>x.client_id===id&&x.log_date===today);
+  const requested=S.clientRequests.some(x=>x.client_id===id&&x.log_date===today);
+  const weight=Number(p.weight_kg)||null,goal={loss:"Снижение веса",maintain:"Поддержание веса",gain:"Набор мышечной массы"}[p.goal]||"Не указана";
+  let h=`<section class="client-detail"><div class="eyebrow">МОЙ КЛИЕНТ</div><h1>${esc(who(id))}</h1>
+   <div class="card client-contact"><div class="client-facts">
+     <div><small>Цель</small><b>${esc(goal)}</b></div>
+     <div><small>Текущий вес</small><b>${weight?`${weight.toLocaleString("ru-RU")} кг`:"Не указан"}</b></div>
+   </div><div class="request-diary-area"><h2>Дневник за сегодня</h2>
+   ${entry?`<p class="sent-success">${icon("check")} ${entry.status==="done"?"Проверено":"Отправлен, ожидает проверки"}</p>
+       <button class="primary full" data-action="openInboxDay" data-client="${esc(id)}" data-date="${esc(today)}">Открыть полученный дневник</button>`:
+     `<p class="subtle">${requested?"Запрос отправлен в приложение клиента.":"Клиент ещё не отправил дневник."}</p>
+       <button class="primary full" data-action="requestDiary" data-id="${esc(id)}" ${requested?"disabled":""}>${icon("send")} ${requested?"Запрос отправлен":"Попросить отправить дневник"}</button>`}
+    <p class="auto-note">Заполненный дневник отправится сам в 22:00, если клиент не отправит раньше.</p>
+   </div></div></section>`;
+  return h;
+}
   function diaryView(){
     const coach=S.mode==="coach",p=currentProfile(),wGoal=waterGoal(p),pGoal=proteinGoal(p),water=num(S.day?.water_ml),protein=dayProtein(),wp=wGoal?Math.min(100,Math.round(100*water/wGoal)):0,pp=pGoal?Math.min(100,Math.round(100*protein/pGoal)):0;
     const state=reviewStatus();
-    let h=`<div class="page-heading"><div><div class="eyebrow">${coach?"ДНЕВНИК КЛИЕНТА":"МОЙ ДНЕВНИК"}</div><h1>${coach?esc(who(S.selected)):"Привет"+(cleanName(p?.display_name)?`, ${esc(cleanName(p.display_name).split(" ")[0])}`:"")+"!"}</h1><p>Питание, вода и самочувствие за день</p></div><span class="state ${state}">${state==="done"?"Проверено":state==="waiting"?"Ждёт проверки":"Нет записей"}</span></div>
+    let h=`<div class="page-heading"><div><div class="eyebrow">${coach?"ДНЕВНИК КЛИЕНТА":"МОЙ ДНЕВНИК"}</div><h1>${coach?esc(who(S.selected)):"Привет"+(cleanName(p?.display_name)?`, ${esc(cleanName(p.display_name).split(" ")[0])}`:"")+"!"}</h1><p>Питание, вода и самочувствие за день</p></div><span class="state ${state}">${state==="done"?"Проверено":state==="waiting"?"Отправлено":state==="draft"?"Сохранено":"Нет записей"}</span></div>
       <div class="date-bar"><button data-action="prevDay">‹</button><label><span>Дата дневника</span><input type="date" id="diaryDate" value="${esc(S.date)}"></label><button data-action="nextDay">›</button></div>
       <div class="indicators">
         <section class="indicator"><div class="indicator-title"><strong>${icon("drop")} Вода</strong><span>${wp}%</span></div><div class="graphic">${glassSvg(wp)}<div><b>${water.toLocaleString("ru-RU")} мл</b><small>${wGoal?`из ${wGoal.toLocaleString("ru-RU")} мл`:"Укажите вес"}</small></div></div>
@@ -173,6 +210,10 @@
         </section>
         <section class="indicator"><div class="indicator-title"><strong>${icon("leaf")} Белок</strong><span>${pp}%</span></div><div class="graphic">${proteinSvg(pp)}<div><b>${protein} г</b><small>${pGoal?`из ${pGoal} г`:"Нет цели"}</small>${pGoal?`<small>Осталось ${Math.max(0,Math.round((pGoal-protein)*10)/10)} г</small>`:""}</div></div><p class="explain">Белок из записей о еде</p></section>
       </div>`;
+    if(!coach&&S.clientRequest&&!S.submission){
+      const consultant=who(S.clientRequest.consultant_id);
+      h+=`<div class="request-banner">${icon("send")}<div><b>Консультант ${esc(consultant)} просит отправить дневник за этот день</b><p>Заполни питание и отправь дневник на проверку.</p></div><button class="secondary" data-action="${S.meals.length?"sendDiary":"openMeal"}" ${S.meals.length?'':'data-type="breakfast"'}>${S.meals.length?"Отправить":"Заполнить"}</button></div>`;
+    }
     if(!coach&&(!p?.weight_kg||!p?.goal))h+=`<div class="hint">Укажите вес и цель — рассчитаем воду и белок. <button data-action="tab" data-tab="profile">Открыть профиль →</button></div>`;
     h+=`<section class="meal-section"><div class="section-title"><div><h2>Моё питание</h2><p>Пять приёмов пищи</p></div>${coach?"":`<button class="primary compact" data-action="openMeal" data-type="breakfast">${icon("camera")} Добавить фото</button>`}</div>`;
     for(const [type,number] of slots){
@@ -201,6 +242,7 @@
       h+=`<form id="dayForm"><div class="two">${formField("activity","Упражнения, мин","number",S.day?.activity_minutes??0,"min=0 max=1440")}<label class="field"><span>Самочувствие</span><select name="wellbeing"><option value="">Выбрать</option>${Array.from({length:11},(_,i)=>i-5).map(n=>`<option value="${n}" ${S.day?.wellbeing===n?"selected":""}>${n===0?"0 — нормально":n>0?"+"+n:n}</option>`).join("")}</select></label></div><div class="two">${formField("wake","Время подъёма","time",fmt(S.day?.wake_time))}${formField("sleep","Время сна","time",fmt(S.day?.bedtime))}</div><label class="field"><span>Самочувствие и заметки</span><textarea name="notes" maxlength="3000" rows="2" placeholder="Как прошёл день?">${esc(S.day?.notes||"")}</textarea></label><button class="primary full">Сохранить итоги дня</button></form>`;
     }
     h+="</section>";
+    if(!coach)h+=sendPanel();
     if(coach&&S.day){
       const own=S.dayReviews.find(r=>r.consultant_id===S.user.id);
       h+=`<section class="card"><h2>Проверка консультанта</h2><form id="dayReviewForm"><div class="rating-row">${Object.entries(ratings).map(([key,label])=>`<label class="${key}"><input type="radio" name="rating" value="${key}" ${(own?.rating||"good")===key?"checked":""}>${label}</label>`).join("")}</div><label class="field"><span>Рекомендации (по желанию)</span><textarea name="comment" rows="3" maxlength="4000" placeholder="Что можно улучшить?">${esc(own?.comment==="Проверено"?"":own?.comment||"")}</textarea></label><button class="primary full">Завершить проверку</button></form></section>`;
@@ -282,7 +324,7 @@
       if(S.tab==="inbox")h+=inboxView();
       else if(S.tab==="profile")h+=coachProfileView();
       else if(S.tab==="results")h+=S.viewingClient&&S.selected?coachDetailBack()+resultsView():coachProgressView();
-      else h+=S.viewingClient&&S.selected?coachDetailBack()+diaryView():coachClientsView();
+      else h+=S.viewingClient&&S.selected?coachDetailBack()+coachClientCard():coachClientsView();
     }else h+=S.tab==="profile"?profileView():S.tab==="results"?resultsView():diaryView();
     root.innerHTML=h+developerFooter()+bottom()+"</div>";
   }
@@ -303,36 +345,38 @@
   }
   async function loadInbox(){
   S.inbox=[];
-  if(!isCoachApp||!S.clients.length){return;}
-  const linkedIds=S.clients.map(x=>x.client_id);
-  const days=await ok(db.from("nd_days").select("id,client_id,log_date,water_ml,activity_minutes,wellbeing,notes,wake_time,bedtime,updated_at").in("client_id",linkedIds).order("log_date",{ascending:false}).limit(300));
+  if(!isCoachApp||!S.clients.length)return;
+  const clientIds=S.clients.map(x=>x.client_id);
+  const days=await ok(db.from("nd_days").select("id,client_id,log_date,updated_at").in("client_id",clientIds).order("log_date",{ascending:false}).limit(300));
   if(!days.length)return;
-  const ids=days.map(x=>x.id);
-  let mealRows=[],reviewRows=[];
+  const ids=days.map(d=>d.id);
+  let mealRows=[],reviewRows=[],subRows=[];
   for(let i=0;i<ids.length;i+=50){
     const chunk=ids.slice(i,i+50);
-    const [meals,reviews]=await Promise.all([
+    const [meals,reviews,submissions]=await Promise.all([
       ok(db.from("nd_meals").select("day_id,created_at").in("day_id",chunk).limit(1000)),
-      ok(db.from("nd_day_reviews").select("day_id,consultant_id,updated_at").in("day_id",chunk).eq("consultant_id",S.user.id))
+      ok(db.from("nd_day_reviews").select("day_id,consultant_id,updated_at").in("day_id",chunk).eq("consultant_id",S.user.id)),
+      ok(db.from("nd_day_submissions").select("day_id,submitted_at,mode").in("day_id",chunk))
     ]);
-    mealRows.push(...meals);reviewRows.push(...reviews);
+    mealRows.push(...meals);reviewRows.push(...reviews);subRows.push(...submissions);
   }
-  const mealMap=new Map(),reviewMap=new Map();
+  const mealMap=new Map(),reviewMap=new Map(reviewRows.map(r=>[r.day_id,r])),subMap=new Map(subRows.map(s=>[s.day_id,s]));
   for(const m of mealRows){
-    let x=mealMap.get(m.day_id);
-    if(!x){x={count:0,latest:0};mealMap.set(m.day_id,x);}
-    x.count++;
-    x.latest=Math.max(x.latest,Date.parse(m.created_at)||0);
+    let entry=mealMap.get(m.day_id);
+    if(!entry){entry={count:0,latest:0};mealMap.set(m.day_id,entry);}
+    entry.count++;entry.latest=Math.max(entry.latest,Date.parse(m.created_at)||0);
   }
-  for(const x of reviewRows){const prior=reviewMap.get(x.day_id);if(!prior||String(x.updated_at)>String(prior.updated_at))reviewMap.set(x.day_id,x);}
   for(const d of days){
-    const mm=mealMap.get(d.id)||{count:0,latest:0};
-    const filled=mm.count>0||Number(d.water_ml)>0||Number(d.activity_minutes)>0||d.wellbeing!==null||Boolean(d.notes?.trim())||Boolean(d.wake_time)||Boolean(d.bedtime);
-    if(!filled)continue;
-    const changed=Math.max(Date.parse(d.updated_at)||0,mm.latest);
-    const review=reviewMap.get(d.id);
-    const reviewed=Boolean(review&&(Date.parse(review.updated_at)||0)>=changed);
-    S.inbox.push({client_id:d.client_id,log_date:d.log_date,mealCount:mm.count,status:reviewed?"done":"pending",changedAt:changed});
+    const submission=subMap.get(d.id);
+    if(!submission)continue;
+    const meals=mealMap.get(d.id)||{count:0,latest:0};
+    const changed=Math.max(Date.parse(d.updated_at)||0,meals.latest);
+    const checkedAt=Date.parse(reviewMap.get(d.id)?.updated_at||"")||0;
+    S.inbox.push({
+      client_id:d.client_id,log_date:d.log_date,mealCount:meals.count,
+      status:checkedAt>=changed?"done":"pending",mode:submission.mode,
+      changedAt:Math.max(changed,Date.parse(submission.submitted_at)||0)
+    });
   }
   S.inbox.sort((a,b)=>b.changedAt-a.changedAt);
 }
