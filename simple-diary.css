@@ -497,3 +497,59 @@ body{
 .app-logo{display:block;width:100%;height:100%;object-fit:cover;border-radius:inherit}
 .brand .logo-mini{flex:none}
 .loading-screen .app-logo{width:72px;height:72px;border-radius:15px;margin:auto}
+
+/* Consultant inbox: restrained editorial layout; no extra cards or emoji */
+body[data-app="coach"] .container{max-width:720px}
+.inbox-page{padding-top:11px}
+.inbox-heading{display:flex;justify-content:space-between;align-items:center;gap:14px;margin:0 0 23px}
+.inbox-heading h1{font-family:Georgia,"Times New Roman",serif;font-size:38px;line-height:1.15;font-weight:400;letter-spacing:-.9px;margin:7px 0 5px;color:#332d33}
+.inbox-heading p{margin:0;font-size:12px;color:#857a83}
+.inbox-refresh{width:42px;height:42px;flex:none;display:grid;place-items:center;background:#fff;border:1px solid #e3dade;border-radius:50%;color:#153e57}
+.inbox-refresh .ui-icon{width:20px;height:20px}
+.inbox-stats{display:grid;grid-template-columns:1fr 1fr;background:#fff;border:1px solid #e8dfe2;border-radius:12px;overflow:hidden;box-shadow:0 7px 18px #332d3309;margin-bottom:21px}
+.inbox-stats>div{padding:20px 21px;display:flex;flex-direction:column;gap:6px}
+.inbox-stats>div+div{border-left:1px solid #ebe3e6}
+.inbox-stats strong{font-size:31px;font-family:Georgia,"Times New Roman",serif;color:#153e57;font-weight:400;line-height:1}
+.inbox-stats span{font-size:11px;color:#837883}
+.inbox-filters{display:flex;gap:6px;align-items:center;overflow-x:auto;border-bottom:1px solid #e3d9de;padding:0 0 9px;margin-bottom:3px}
+.inbox-filters button{border:1px solid transparent;border-radius:7px;padding:10px 10px;background:none;color:#80727e;display:inline-flex;gap:7px;align-items:center;white-space:nowrap;font-size:12px;font-weight:650}
+.inbox-filters button.selected{color:#153e57;background:#eef4f6;border-color:#d8e4e9}
+.inbox-filters span{font-size:10px;color:#827a83}
+.inbox-filters button.selected span{color:#153e57}
+.inbox-items{background:#fffefe;border:1px solid #e8dfe2;border-radius:13px;box-shadow:0 8px 22px #47313b0b;overflow:hidden}
+.inbox-entry{width:100%;border:0;border-bottom:1px solid #eee8eb;background:transparent;text-align:left;display:flex;gap:12px;align-items:center;padding:20px 17px;color:#332d33}
+.inbox-entry:last-child{border-bottom:0}
+.inbox-entry:hover,.inbox-entry:focus-visible{background:#f8f7f8}
+.inbox-entry-mark{width:9px;height:9px;flex:none;border-radius:50%;background:#b8bdc2;margin:0 3px}
+.inbox-entry-mark.unreviewed{background:#d28d78}
+.inbox-entry-mark.reviewed{background:#8db8a5}
+.inbox-entry-copy{min-width:0;flex:1;display:flex;flex-direction:column;gap:5px}
+.inbox-entry-copy strong{font-size:14px;font-weight:740;line-height:1.3}
+.inbox-entry-copy>span{font-size:12px;color:#807681;line-height:1.4}
+.inbox-entry-copy small{font-size:10px;color:#9a8995}
+.inbox-entry-status{font-size:10px;color:#8b6b70;white-space:nowrap;display:flex;align-items:center;gap:6px}
+.inbox-entry-status.done{color:#4b856b}
+.inbox-entry-status .ui-icon{width:14px;height:14px;color:#9aa7ac}
+.inbox-empty{display:flex;flex-direction:column;align-items:center;text-align:center;gap:9px;padding:49px 22px;color:#8d8189}
+.inbox-empty .ui-icon{width:32px;height:32px;color:#96b1bf;margin-bottom:4px;stroke-width:1.3}
+.inbox-empty h2{font-family:Georgia,"Times New Roman",serif;font-size:20px;font-weight:400;margin:0;color:#463b43}
+.inbox-empty p{font-size:12px;line-height:1.55;margin:0;max-width:300px}
+.inbox-footer{padding:19px 6px 16px}
+.inbox-footer>p{font-size:11px;line-height:1.55;color:#988a93;margin:0 0 15px}
+.inbox-connection{padding:12px 0;border-top:1px solid #e4dbe0}
+.inbox-connection summary{color:#153e57;font-size:12px;font-weight:680;cursor:pointer;padding:4px}
+.inbox-connection p{font-size:12px;color:#887983}
+.inbox-connection .secondary{margin-top:4px}
+.bottom-nav.coach-nav{grid-template-columns:repeat(4,minmax(0,1fr));gap:2px}
+.coach-nav button{position:relative;font-size:10px;min-width:0}
+.coach-nav .nav-count{display:inline-flex;position:absolute;top:0;left:calc(50% + 5px);min-width:16px;height:16px;padding:0 4px;align-items:center;justify-content:center;border-radius:8px;background:#d28d78;color:#fff!important;font-family:inherit;font-size:10px!important;line-height:16px;box-shadow:0 1px 3px #332d3326}
+@media(max-width:420px){
+  .inbox-heading h1{font-size:34px}
+  .inbox-entry{padding:16px 12px;gap:8px}
+  .inbox-entry-copy strong{font-size:13px}
+  .inbox-entry-copy>span{font-size:11px}
+  .inbox-entry-status{font-size:9px;gap:2px}
+  .inbox-filters button{font-size:11px;padding:9px 8px}
+  .inbox-stats>div{padding:19px 16px}
+  .inbox-entry-status .ui-icon{width:12px;height:12px}
+}
