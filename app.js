@@ -7,7 +7,7 @@
   const names={breakfast:'Завтрак',snack1:'Перекус',lunch:'Обед',snack2:'Полдник',dinner:'Ужин',other:'Другое'};
   const emo={breakfast:'☀️',snack1:'🍎',lunch:'🥗',snack2:'🥜',dinner:'🌙',other:'🍽️'};
   const status={good:'✅ Хорошо',improve:'✏️ Исправить'};
-  const S={user:null,profile:null,view:'diary',mode:'client',date:d0(),links:[],linked:[],profiles:{},selected:null,day:null,meals:[],mealReviews:[],dayReviews:[],plans:[],planMeals:[],activePlan:null,foods:[],photo:{},pending:false,register:false};
+  const S={user:null,profile:null,view:'diary',mode:'client',date:d0(),links:[],linked:[],profiles:{},selected:null,day:null,meals:[],mealReviews:[],dayReviews:[],plans:[],planMeals:[],activePlan:null,foods:[],photo:{},pending:false,register:false,resetRequest:false,recovery:new URLSearchParams(location.hash.replace(/^#/, '')).get('type')==='recovery',loginEmail:''};
   const field=(name,label,value='',type='text',extra='')=>'<label class="field"><span>'+label+'</span><input name="'+name+'" type="'+type+'" value="'+esc(value)+'" '+extra+'></label>';
   const area=(name,label,value='',extra='')=>'<label class="field"><span>'+label+'</span><textarea name="'+name+'" '+extra+'>'+esc(value)+'</textarea></label>';
   const opts=(selected='breakfast')=>Object.entries(names).map(([v,n])=>'<option value="'+v+'"'+(v===selected?' selected':'')+'>'+n+'</option>').join('');
@@ -22,8 +22,13 @@
   async function check(p){const {data,error}=await p;if(error)throw error;return data;}
   async function run(fn){if(S.pending)return;S.pending=true;try{await fn();}catch(e){console.error(e);toast('Ошибка: '+err(e));}finally{S.pending=false;}}
   function mainView(){
+    if(S.recovery){
+      $('#app').innerHTML='<div class="auth"><div class="auth-card"><div class="symbol">🔐</div><h1>Новый пароль</h1><p>Создайте новый пароль для входа в дневник питания.</p><form id="newPasswordForm">'+field('newPassword','Новый пароль','','password','required minlength="8" autocomplete="new-password"')+field('confirmPassword','Повторите пароль','','password','required minlength="8" autocomplete="new-password"')+'<button class="btn primary fill">Сохранить пароль</button></form><p class="subtle">Используйте не менее 8 символов. Никому не отправляйте пароль.</p></div></div>';
+      return;
+    }
     if(!S.user){
-      $('#app').innerHTML='<div class="auth"><div class="auth-card"><div class="symbol">✳</div><h1>Дневник питания</h1><p>Заполняйте дневник, получайте рекомендации и следите за полезными привычками.</p><h2>'+(S.register?'Регистрация':'Вход')+'</h2><form id="authForm">'+(S.register?field('name','Ваше имя','','text','required maxlength="120"'):'')+field('email','Электронная почта','','email','required autocomplete="email"')+field('password','Пароль','','password','required minlength="6"')+'<button class="btn primary fill">'+(S.register?'Зарегистрироваться':'Войти')+'</button></form><button class="link" data-action="authToggle">'+(S.register?'Уже есть аккаунт? Войти':'Нет аккаунта? Зарегистрироваться')+'</button><p class="subtle">Данные о питании доступны только вам и консультанту, которого вы подключите.</p></div></div>';
+      const forgot=S.resetRequest;
+      $('#app').innerHTML='<div class="auth"><div class="auth-card"><div class="symbol">✳</div><h1>Дневник питания</h1><p>Заполняйте дневник, получайте рекомендации и следите за полезными привычками.</p><h2>'+(forgot?'Восстановление пароля':S.register?'Регистрация':'Вход')+'</h2>'+(forgot?'<p>Введите почту, на которую зарегистрирован аккаунт. Отправим ссылку для создания нового пароля.</p><form id="resetRequestForm">'+field('email','Электронная почта',S.loginEmail,'email','required autocomplete="email"')+'<button class="btn primary fill">Отправить ссылку</button></form><button class="link" data-action="resetBack">← Вернуться ко входу</button>':'<form id="authForm">'+(S.register?field('name','Ваше имя','','text','required maxlength="120"'):'')+field('email','Электронная почта',S.loginEmail,'email','required autocomplete="email"')+field('password','Пароль','','password','required minlength="6" autocomplete="'+(S.register?'new-password':'current-password')+'"')+'<button class="btn primary fill">'+(S.register?'Зарегистрироваться':'Войти')+'</button></form><button class="link" data-action="authToggle">'+(S.register?'Уже есть аккаунт? Войти':'Нет аккаунта? Зарегистрироваться')+'</button>'+(S.register?'':'<button class="link" data-action="forgotPassword">Забыли пароль?</button>'))+'<p class="subtle">Данные о питании доступны только вам и консультанту, которого вы подключите.</p></div></div>';
       return;
     }
     $('#app').innerHTML='<div class="layout"><header><div class="brand"><div class="symbol">✳</div><div><strong>ДНЕВНИК ПИТАНИЯ</strong><small>Nutrition Studio</small></div></div><button class="btn small" data-action="logout">Выход</button></header><section class="hero"><span>ВАШ ПУТЬ К ПОЛЕЗНЫМ ПРИВЫЧКАМ</span><h1>'+(S.mode==='client'?'Мой дневник питания':'Кабинет консультанта')+'</h1><p>'+(S.mode==='client'?'Записывайте, что едите, и получайте персональные рекомендации.':'Проверяйте дневники клиентов и отмечайте, что получается хорошо.')+'</p></section><div class="modebar"><button data-action="clientMode" class="mode '+(S.mode==='client'?'active':'')+'">📔 Мой дневник</button><button data-action="coachMode" class="mode '+(S.mode==='coach'?'active':'')+'">👩‍💼 Я консультант</button></div><div class="columns"><main><nav><button data-action="tab" data-tab="diary" class="'+(S.view==='diary'?'active':'')+'">Дневник</button><button data-action="tab" data-tab="plans" class="'+(S.view==='plans'?'active':'')+'">План питания</button><button data-action="tab" data-tab="foods" class="'+(S.view==='foods'?'active':'')+'">Продукты</button></nav>'+(S.view==='diary'?diaryView():S.view==='plans'?plansView():foodsView())+'</main><aside>'+sideView()+'</aside></div><footer>Дневник питания · Данные хранятся в защищённой базе</footer></div>';
@@ -169,8 +174,29 @@
     if(!(e.target instanceof HTMLFormElement))return;
     e.preventDefault();const f=e.target;
     run(async()=>{
+      if(f.id==='resetRequestForm'){
+        S.loginEmail=val(f,'email');
+        const {error}=await db.auth.resetPasswordForEmail(S.loginEmail,{redirectTo:window.location.origin+window.location.pathname});
+        if(error)throw error;
+        S.resetRequest=false;S.register=false;mainView();
+        toast('Если этот адрес зарегистрирован, письмо со ссылкой для сброса отправлено. Проверьте также папку «Спам».');
+        return;
+      }
+      if(f.id==='newPasswordForm'){
+        const password=val(f,'newPassword'),repeat=val(f,'confirmPassword');
+        if(password.length<8)throw Error('Пароль должен содержать не менее 8 символов');
+        if(password!==repeat)throw Error('Пароли не совпадают');
+        const {data:{user},error:userError}=await db.auth.getUser();
+        if(userError||!user)throw Error('Ссылка для восстановления недействительна или устарела. Запросите новую ссылку.');
+        const {error}=await db.auth.updateUser({password});
+        if(error)throw error;
+        S.recovery=false;S.resetRequest=false;S.register=false;S.user=user;
+        history.replaceState(null,'',window.location.pathname+window.location.search);
+        await enter(user);toast('Пароль изменён. Вы вошли в дневник.');
+        return;
+      }
       if(f.id==='authForm'){
-        const email=val(f,'email'),password=val(f,'password');
+        const email=val(f,'email'),password=val(f,'password');S.loginEmail=email;
         if(S.register){
           const {data,error}=await db.auth.signUp({email,password,options:{data:{display_name:val(f,'name')},emailRedirectTo:window.location.origin+window.location.pathname}});
           if(error)throw error;
@@ -245,6 +271,8 @@
     const btn=e.target.closest('[data-action]');if(!btn)return;
     const act=btn.dataset.action,id=btn.dataset.id;
     if(act==='authToggle'){S.register=!S.register;mainView();return;}
+    if(act==='forgotPassword'){S.loginEmail=document.querySelector('input[name="email"]')?.value?.trim()||S.loginEmail;S.register=false;S.resetRequest=true;mainView();return;}
+    if(act==='resetBack'){S.resetRequest=false;S.register=false;mainView();return;}
     if(act==='tab'){S.view=btn.dataset.tab;mainView();return;}
     run(async()=>{
       if(act==='logout'){await db.auth.signOut();S.user=null;mainView();}
@@ -264,7 +292,7 @@
   });
   try{
     const {data:{session},error}=await db.auth.getSession();if(error)throw error;
-    if(session?.user)await enter(session.user);else mainView();
-    db.auth.onAuthStateChange((event)=>{if(event==='SIGNED_OUT'){S.user=null;mainView();}});
+    if(session?.user){if(S.recovery){S.user=session.user;mainView();}else await enter(session.user);}else mainView();
+    db.auth.onAuthStateChange((event,session)=>{if(event==='PASSWORD_RECOVERY'){S.recovery=true;S.resetRequest=false;S.user=session?.user||S.user;mainView();}else if(event==='SIGNED_OUT'){S.user=null;S.recovery=false;mainView();}});
   }catch(e){console.error(e);$('#app').innerHTML='<div class="auth"><div class="auth-card"><h2>Не удалось открыть приложение</h2><p>'+esc(err(e))+'</p><button class="btn primary" onclick="location.reload()">Повторить</button></div></div>';}
 })();
