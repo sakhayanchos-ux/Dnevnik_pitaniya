@@ -166,7 +166,7 @@
   function render(){
     if(!S.user||S.recovery){root.innerHTML=authView();return}
     if(S.denied){
-      root.innerHTML=`<div class="auth-screen"><section class="auth-card"><h1>Только для консультантов</h1><p>Этот кабинет открывается только для подтверждённых консультантов. У клиентов есть отдельный дневник.</p><p><a href="${APP_URL}">Перейти к дневнику клиента</a></p><button class="primary full" data-action="logout">Выйти</button></section></div>`;
+      root.innerHTML=`<div class="auth-screen"><section class="auth-card"><h1>Вход консультанта</h1><p>Сейчас выполнен вход под адресом:</p><p class="signed-in-email">${esc(S.user?.email||"Электронная почта не определена")}</p><p>Этот аккаунт пока не имеет доступа консультанта. Выйдите и войдите под почтой, для которой подтверждён статус консультанта.</p><button class="primary full" data-action="logout">Выйти и сменить аккаунт</button><p class="client-link"><a href="${APP_URL}">Открыть дневник клиента</a></p></section></div>`;
       return;
     }
     let h=`<div class="container">${top()}`;
