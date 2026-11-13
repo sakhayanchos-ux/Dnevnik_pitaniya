@@ -1,0 +1,20 @@
+{
+  "id": "/Dnevnik_pitaniya/",
+  "name": "Дневник питания",
+  "short_name": "Дневник",
+  "lang": "ru",
+  "description": "Личный дневник питания с уведомлениями консультанта.",
+  "start_url": "/Dnevnik_pitaniya/",
+  "scope": "/Dnevnik_pitaniya/",
+  "display": "standalone",
+  "background_color": "#F2E4E3",
+  "theme_color": "#F2E4E3",
+  "icons": [
+    {
+      "src": "/Dnevnik_pitaniya/diary-icon.webp",
+      "sizes": "144x144",
+      "type": "image/webp",
+      "purpose": "any maskable"
+    }
+  ]
+}
