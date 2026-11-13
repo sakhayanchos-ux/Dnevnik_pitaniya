@@ -677,3 +677,7 @@ body[data-app="coach"] .container{max-width:720px}
 .push-settings .primary .ui-icon{width:17px;height:17px}
 .push-settings .push-hint{font-size:11px;line-height:1.6;color:#8c8089;margin:13px 0 0}
 .push-settings .push-active{font-size:12px;color:#38765e;margin:13px 0 0;font-weight:640}
+
+/* Inbox entry: show responsive loading state while the submitted diary opens */
+.received-diary-loading{padding:24px 22px;min-height:110px;display:flex;align-items:center;color:#857c85}
+.received-diary-loading p{font-size:13px;margin:0}
