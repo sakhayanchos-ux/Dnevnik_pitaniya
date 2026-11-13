@@ -304,8 +304,9 @@
         S.clientWeights={};
         for(const w of weights)(S.clientWeights[w.client_id]??=[]).push(w);
       }
-      if(tab==="inbox"){
-        await loadInbox();
+      if(tab==="inbox")await loadInbox();
+      if(tab==="diary"){
+        S.clientRequests=await ok(db.from("nd_diary_requests").select("client_id,log_date,requested_at").eq("consultant_id",userId).eq("log_date",localDate()));
       }
       if(seq===S.navSeq&&S.user?.id===userId&&S.tab===tab&&!S.viewingClient)render();
     }catch(e){
@@ -395,30 +396,45 @@
         const rows=await ok(db.from("nd_weights").select("client_id,log_date,weight_kg").in("client_id",clients.map(l=>l.client_id)).order("log_date",{ascending:true}).limit(2000));
         for(const w of rows)(S.clientWeights[w.client_id]??=[]).push(w);
       }
+      S.clientRequests=await ok(db.from("nd_diary_requests").select("client_id,log_date,requested_at").eq("consultant_id",id).eq("log_date",localDate()));
       await loadInbox();
     }
     await loadDay();
   }
   async function loadDay(){
-    S.day=null;S.meals=[];S.mealReviews=[];S.dayReviews=[];S.photo={};S.weights=[];
-    const id=currentId();
-    if(!id){render();return}
-    const [day,weights]=await Promise.all([ok(db.from("nd_days").select("*").eq("client_id",id).eq("log_date",S.date).maybeSingle()),ok(db.from("nd_weights").select("*").eq("client_id",id).order("log_date",{ascending:true}).limit(120))]);
-    S.day=day;S.weights=weights;
-    if(day){
-      S.meals=await ok(db.from("nd_meals").select("*").eq("day_id",day.id).order("eaten_at"));
-      const ids=S.meals.map(m=>m.id);
-      const [mr,dr]=await Promise.all([ids.length?ok(db.from("nd_meal_reviews").select("*").in("meal_id",ids)):Promise.resolve([]),ok(db.from("nd_day_reviews").select("*").eq("day_id",day.id))]);
-      S.mealReviews=mr;S.dayReviews=dr;
-    }
-    render();
-    const pictured=S.meals.filter(m=>m.photo_path);
-    if(pictured.length){
-      const signed=await Promise.all(pictured.map(async m=>{const {data}=await db.storage.from("nd-meal-photos").createSignedUrl(m.photo_path,1200);return [m.id,data?.signedUrl]}));
-      S.photo=Object.fromEntries(signed.filter(x=>x[1]));
-      render();
-    }
+  S.day=null;S.meals=[];S.mealReviews=[];S.dayReviews=[];S.photo={};S.weights=[];
+  S.submission=null;S.clientRequest=null;
+  const id=currentId();
+  if(!id){render();return}
+  const clientRequestQuery=S.mode==="client"?
+    ok(db.from("nd_diary_requests").select("consultant_id,log_date,requested_at").eq("client_id",S.user.id).eq("log_date",S.date).order("requested_at",{ascending:false}).limit(1)):
+    Promise.resolve([]);
+  const [day,weights,requests]=await Promise.all([
+    ok(db.from("nd_days").select("*").eq("client_id",id).eq("log_date",S.date).maybeSingle()),
+    ok(db.from("nd_weights").select("*").eq("client_id",id).order("log_date",{ascending:true}).limit(120)),
+    clientRequestQuery
+  ]);
+  S.day=day;S.weights=weights;S.clientRequest=requests[0]||null;
+  if(day){
+    const [meals,reviews,submissions]=await Promise.all([
+      ok(db.from("nd_meals").select("*").eq("day_id",day.id).order("eaten_at")),
+      ok(db.from("nd_day_reviews").select("*").eq("day_id",day.id)),
+      ok(db.from("nd_day_submissions").select("*").eq("day_id",day.id).maybeSingle())
+    ]);
+    S.meals=meals;S.dayReviews=reviews;S.submission=submissions;
+    if(meals.length)S.mealReviews=await ok(db.from("nd_meal_reviews").select("*").in("meal_id",meals.map(m=>m.id)));
   }
+  render();
+  const pictured=S.meals.filter(m=>m.photo_path);
+  if(pictured.length){
+    const signed=await Promise.all(pictured.map(async m=>{
+      const {data}=await db.storage.from("nd-meal-photos").createSignedUrl(m.photo_path,1200);
+      return [m.id,data?.signedUrl];
+    }));
+    S.photo=Object.fromEntries(signed.filter(x=>x[1]));
+    render();
+  }
+}
   async function saveWater(n){
     const water=Math.max(0,Math.min(15000,n));
     await ok(S.day?db.from("nd_days").update({water_ml:water,updated_at:new Date().toISOString()}).eq("id",S.day.id):db.from("nd_days").insert({client_id:S.user.id,log_date:S.date,water_ml:water}));
@@ -582,10 +598,27 @@
     guarded(async()=>{
       if(action==="logout"){await db.auth.signOut();S.user=null;S.denied=false;render();return}
       if(action==="refreshClients"){await loadLinks();notify("Имена клиентов обновлены");return}
-      if(action==="chooseClient"){S.selected=b.dataset.id;S.tab="diary";S.viewingClient=true;await loadDay();return}
+      if(action==="chooseClient"){S.selected=b.dataset.id;S.tab="diary";S.viewingClient=true;render();return}
       if(action==="openProgressClient"){S.selected=b.dataset.id;S.tab="results";S.viewingClient=true;await loadDay();return}
       if(action==="backToList"){S.viewingClient=false;render();return}
       if(action==="openInboxDay"){S.selected=b.dataset.client;S.date=b.dataset.date;S.tab="diary";S.viewingClient=true;await loadDay();return}
+      if(action==="requestDiary"){
+        if(!isCoachApp||!S.clients.some(l=>l.client_id===b.dataset.id))throw Error("Клиент не подключён");
+        const id=b.dataset.id,today=localDate();
+        if(S.inbox.some(x=>x.client_id===id&&x.log_date===today))throw Error("Дневник уже отправлен и находится во входящих");
+        await ok(db.from("nd_diary_requests").upsert({client_id:id,consultant_id:S.user.id,log_date:today,requested_at:new Date().toISOString()},{onConflict:"client_id,consultant_id,log_date"}));
+        S.clientRequests=S.clientRequests.filter(x=>!(x.client_id===id&&x.log_date===today));
+        S.clientRequests.push({client_id:id,log_date:today,requested_at:new Date().toISOString()});
+        notify("Запрос отправлен в приложение клиента");render();return;
+      }
+      if(action==="sendDiary"){
+        if(isCoachApp||!S.user)throw Error("Отправить дневник может только клиент");
+        if(S.submission){notify("Дневник уже отправлен");return;}
+        if(!S.day||!S.meals.length)throw Error("Сначала добавьте хотя бы один приём пищи");
+        if(!S.consultants.length)throw Error("Сначала подключите консультанта");
+        await ok(db.from("nd_day_submissions").insert({day_id:S.day.id,client_id:S.user.id,mode:"manual"}));
+        notify("Дневник отправлен консультанту");await loadDay();return;
+      }
       if(action==="refreshInbox"){await loadInbox();render();notify("Входящие обновлены");return}
       if(action==="prevDay"||action==="nextDay"){S.date=dateAdd(S.date,action==="prevDay"?-1:1);S.openMeal=false;await loadDay();return}
       if(action==="waterQuick"){await saveWater(num(S.day?.water_ml)+Number(b.dataset.ml));return}
