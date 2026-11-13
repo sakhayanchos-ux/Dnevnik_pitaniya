@@ -13,6 +13,10 @@
   const APP_URL="https://sakhayanchos-ux.github.io/Dnevnik_pitaniya/";
   const isCoachApp=/\/consultant(?:\/|\/index\.html)?$/.test(location.pathname);
   const assetRoot=isCoachApp?"../":"./";
+  const PUSH_PUBLIC="BIvUd8m3MabngQ6DcST3cq3HuJeeIWnw0r-nQEB0JnYytcU7yHDhBWez9iYn1KW2O_qlHuVueNXRF9y8OAUbBYc";
+  const SW_PATH=new URL("./sw.js",location.href).href;
+  const pathDate=callbackQuery.get("date");
+  const initialDate=/^\d{4}-\d{2}-\d{2}$/.test(pathDate||"")?pathDate:null;
   const root=document.getElementById("app");
   const toastEl=document.getElementById("toast");
   const mealNames={breakfast:"Завтрак",snack1:"Первый перекус",lunch:"Обед",snack2:"Второй перекус",dinner:"Ужин",other:"Другое"};
@@ -33,7 +37,7 @@
     inbox:'<path d="M4 4h16v15H4V4Z"/><path d="M4 14h5l2 3h2l2-3h5"/>',
     refresh:'<path d="M20 7v5h-5"/><path d="M4 17v-5h5"/><path d="M5.5 9a7.2 7.2 0 0 1 12.6-2L20 12M4 12l1.9 5a7.2 7.2 0 0 0 12.6-2"/>'
   }[name]||'')+'</svg>';
-  const S={user:null,profile:null,people:{},consultants:[],clients:[],mode:isCoachApp?"coach":"client",denied:false,tab:isCoachApp?"inbox":"diary",inboxFilter:"pending",inbox:[],submission:null,clientRequest:null,clientRequests:[],clientWeights:{},viewingClient:false,date:localDate(),selected:null,day:null,meals:[],mealReviews:[],dayReviews:[],weights:[],photo:{},openMeal:false,mealType:"breakfast",authMode:"login",recovery:recoveryFromUrl,busy:false,navSeq:0};
+  const S={user:null,profile:null,people:{},consultants:[],clients:[],mode:isCoachApp?"coach":"client",denied:false,pushEnabled:false,tab:isCoachApp?"inbox":"diary",inboxFilter:"pending",inbox:[],submission:null,clientRequest:null,clientRequests:[],clientWeights:{},viewingClient:false,date:initialDate||localDate(),selected:null,day:null,meals:[],mealReviews:[],dayReviews:[],weights:[],photo:{},openMeal:false,mealType:"breakfast",authMode:"login",recovery:recoveryFromUrl,busy:false,navSeq:0};
   const esc=x=>String(x??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   const num=x=>Number(x||0);
   const cleanName=x=>/^(?:phone[._ -]?[0-9+]+|[+0-9][0-9 .-]{7,})$/i.test(String(x||""))?"":String(x||"");
@@ -140,7 +144,7 @@
 
   function coachProfileView(){
   const p=S.profile||{};
-  return `<section class="coach-list-page consultant-profile"><div class="eyebrow">КОНСУЛЬТАНТ</div><h1>Мой профиль</h1><p class="subtle">Это имя увидят твои подключённые клиенты.</p><div class="card"><h2>Мои данные</h2><form id="consultantOwnProfileForm">${formField("name","Имя и фамилия","text",cleanName(p.display_name)||"","required maxlength=120")}<label class="field"><span>Электронная почта</span><input type="email" value="${esc(S.user.email||"")}" disabled></label><button class="primary full">Сохранить имя</button></form></div><div class="card"><h2>Код для подключения</h2><p class="subtle">Отправь этот код клиенту. Он введёт его в своём профиле.</p><div class="copy-code">${esc(S.user.id)}</div><button class="primary full" data-action="copyCode">${icon("copy")} Скопировать код</button></div></section>`;
+  return `<section class="coach-list-page consultant-profile"><div class="eyebrow">КОНСУЛЬТАНТ</div><h1>Мой профиль</h1><p class="subtle">Это имя увидят твои подключённые клиенты.</p><div class="card"><h2>Мои данные</h2><form id="consultantOwnProfileForm">${formField("name","Имя и фамилия","text",cleanName(p.display_name)||"","required maxlength=120")}<label class="field"><span>Электронная почта</span><input type="email" value="${esc(S.user.email||"")}" disabled></label><button class="primary full">Сохранить имя</button></form></div><div class="card"><h2>Код для подключения</h2><p class="subtle">Отправь этот код клиенту. Он введёт его в своём профиле.</p><div class="copy-code">${esc(S.user.id)}</div><button class="primary full" data-action="copyCode">${icon("copy")} Скопировать код</button></div>${pushPanel()}</section>`;
 }
 
   function coachDetailBack(){
@@ -250,12 +254,69 @@
     if(S.dayReviews.length)h+=`<section class="card"><h2>Рекомендации консультанта</h2>${S.dayReviews.map(r=>`<div class="review-label ${esc(r.rating||"good")}"><b>${esc(who(r.consultant_id))} · ${esc(ratings[r.rating]||"Проверено")}</b>${r.comment&&r.comment!=="Проверено"?`<p>${esc(r.comment)}</p>`:""}</div>`).join("")}</section>`;
     return h;
   }
+  function supportsPush(){return ("serviceWorker" in navigator)&&("PushManager" in window)&&("Notification" in window);}
+  function pushPublicBytes(){
+  const base64=PUSH_PUBLIC.replace(/-/g,"+").replace(/_/g,"/");
+  const raw=atob(base64+"=".repeat((4-base64.length%4)%4));
+  return Uint8Array.from(raw,c=>c.charCodeAt(0));
+}
+  function pushPanel(){
+  const available=supportsPush(), granted=available&&Notification.permission==="granted";
+  const denied=available&&Notification.permission==="denied";
+  const description=isCoachApp?
+    "Новые дневники клиентов будут приходить на телефон, даже когда кабинет закрыт.":
+    "Когда консультант попросит отправить дневник, уведомление придёт на телефон, даже если приложение закрыто.";
+  let h='<section class="card push-settings"><h2>Push-уведомления</h2><p class="subtle">'+description+'</p>';
+  if(!available)h+='<p class="push-hint">На iPhone откройте дневник в Safari, выберите «Поделиться» → «На экран Домой», откройте приложение через его значок и вернитесь сюда.</p>';
+  else if(denied)h+='<p class="push-hint">Уведомления заблокированы. Разрешите их для приложения в настройках телефона.</p>';
+  else h+='<button class="primary full" data-action="togglePush">'+icon("inbox")+' '+(S.pushEnabled?"Выключить уведомления":"Включить уведомления")+'</button>';
+  if(available&&granted&&S.pushEnabled)h+='<p class="push-active">Уведомления включены на этом устройстве.</p>';
+  else h+='<p class="push-hint">На iPhone требуется iOS 16.4 или новее и приложение на экране «Домой». Разрешение запрашивается только после нажатия кнопки.</p>';
+  return h+"</section>";
+}
+  async function checkPushSettings(){
+  if(!S.user||!supportsPush()||Notification.permission!=="granted")return;
+  try{
+    const reg=await navigator.serviceWorker.getRegistration(SW_PATH);
+    const sub=await reg?.pushManager.getSubscription();
+    if(!sub)return;
+    const existing=await ok(db.from("nd_push_subscriptions").select("endpoint").eq("endpoint",sub.endpoint).eq("user_id",S.user.id).eq("app_type",isCoachApp?"consultant":"client").maybeSingle());
+    if(existing){S.pushEnabled=true;if(S.tab==="profile")render();}
+  }catch(err){console.warn("Push status unavailable",err);}
+}
+  async function unsubscribePush(){
+  if(!supportsPush())return;
+  const reg=await navigator.serviceWorker.getRegistration(SW_PATH);
+  const sub=await reg?.pushManager.getSubscription();
+  if(sub){
+    await ok(db.from("nd_push_subscriptions").delete().eq("endpoint",sub.endpoint).eq("user_id",S.user.id));
+    await sub.unsubscribe();
+  }
+  S.pushEnabled=false;
+}
+  async function enablePush(permissionPromise){
+  const permission=await permissionPromise;
+  if(permission!=="granted")throw Error("Уведомления не разрешены. Проверьте настройки телефона.");
+  const reg=await navigator.serviceWorker.register(SW_PATH,{scope:new URL("./",SW_PATH).pathname});
+  let sub=await reg.pushManager.getSubscription();
+  if(!sub)sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:pushPublicBytes()});
+  const value=sub.toJSON();
+  if(!value.endpoint||!value.keys?.p256dh||!value.keys?.auth)throw Error("Не удалось подключить уведомления. Попробуйте ещё раз.");
+  await ok(db.from("nd_push_subscriptions").upsert({
+    endpoint:value.endpoint,user_id:S.user.id,app_type:isCoachApp?"consultant":"client",
+    p256dh:value.keys.p256dh,auth_secret:value.keys.auth,last_seen_at:new Date().toISOString()
+  },{onConflict:"endpoint"}));
+  S.pushEnabled=true;
+  render();
+  notify("Push-уведомления включены");
+}
   function profileView(){
     const coach=S.mode==="coach",p=currentProfile();
     let h=`<div class="intro"><h1>${coach?"Профиль клиента":"Мой профиль"}</h1><p>Данные для автоматического расчёта воды и белка</p></div><section class="card"><form id="${coach?"coachProfileForm":"profileForm"}">`;
     if(!coach)h+=formField("name","Имя и фамилия","text",cleanName(p?.display_name)||"","required maxlength=120");
     h+=`${formField("weight","Текущий вес, кг","number",p?.weight_kg??"","min=20 max=500 step=.1")}<label class="field"><span>Моя цель</span><select name="goal"><option value="">Выбрать</option>${[["loss","Снижение веса"],["maintain","Поддержание веса"],["gain","Набор мышечной массы"]].map(([key,label])=>`<option value="${key}" ${p?.goal===key?"selected":""}>${label}</option>`).join("")}</select></label>${formField("target","Желаемый вес, кг (при снижении или наборе)","number",p?.target_weight_kg??"","min=20 max=500 step=.1")}<button class="primary full">Сохранить профиль</button></form></section>`;
     if(!coach)h+=`<section class="card"><h2>Мой консультант</h2><p class="subtle">Введите код консультанта, чтобы он мог проверять дневник.</p><form id="linkForm">${formField("code","Код консультанта","text","","required placeholder='Вставьте код'")}<button class="primary full">Подключить</button></form>${S.consultants.map(l=>`<div class="connected"><b>${esc(who(l.consultant_id))}</b><button data-action="unlink" data-id="${esc(l.consultant_id)}">Отключить</button></div>`).join("")}</section>`;
+    if(!coach)h+=pushPanel();
     return h;
   }
   function resultsView(){
@@ -343,7 +404,19 @@
       const clean=String(user.user_metadata?.display_name||user.email?.split("@")[0]||"Участник").slice(0,120);
       p=await ok(db.from("nd_profiles").insert({id:user.id,display_name:clean}).select().single());
     }
-    S.profile=p;await loadLinks();
+    S.profile=p;
+    if(supportsPush())void navigator.serviceWorker.register(SW_PATH,{scope:new URL("./",SW_PATH).pathname}).catch(e=>console.warn("Service worker unavailable",e));
+    await loadLinks();
+    if(isCoachApp){
+      const deepClient=callbackQuery.get("client");
+      const deepDate=callbackQuery.get("date");
+      if(deepClient&&S.clients.some(x=>x.client_id===deepClient)){
+        S.selected=deepClient;S.tab="diary";S.viewingClient=true;
+        if(/^\d{4}-\d{2}-\d{2}$/.test(deepDate||""))S.date=deepDate;
+        await loadDay();
+      }
+    }
+    void checkPushSettings();
   }
   async function loadInbox(){
   S.inbox=[];
@@ -593,11 +666,21 @@
       }
       return;
     }
+    if(action==="togglePush"){
+      if(!supportsPush()){notify("Откройте приложение с экрана «Домой»");return;}
+      if(S.pushEnabled){
+        guarded(async()=>{await unsubscribePush();notify("Уведомления выключены");render()});
+      }else{
+        const permissionPromise=Notification.requestPermission();
+        guarded(async()=>{await enablePush(permissionPromise)});
+      }
+      return;
+    }
     if(action==="inboxFilter"){S.inboxFilter=b.dataset.filter;render();return}
     if(action==="openMeal"){S.mealType=b.dataset.type||"breakfast";S.openMeal=true;render();document.getElementById("newEntry")?.scrollIntoView({behavior:"smooth",block:"start"});return}
     if(action==="closeMeal"){S.openMeal=false;render();return}
     guarded(async()=>{
-      if(action==="logout"){await db.auth.signOut();S.user=null;S.denied=false;render();return}
+      if(action==="logout"){if(S.user&&S.pushEnabled)await unsubscribePush();await db.auth.signOut();S.user=null;S.denied=false;S.pushEnabled=false;render();return}
       if(action==="refreshClients"){await loadLinks();notify("Имена клиентов обновлены");return}
       if(action==="chooseClient"){
         S.selected=b.dataset.id;S.tab="diary";S.viewingClient=true;
