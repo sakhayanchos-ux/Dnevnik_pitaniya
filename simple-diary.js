@@ -45,7 +45,7 @@
   function dateAdd(date,n){const [y,m,d]=date.split("-").map(Number);return new Date(Date.UTC(y,m-1,d+n)).toISOString().slice(0,10)}
   const currentId=()=>S.mode==="coach"?S.selected:S.user?.id;
   const currentProfile=()=>S.mode==="coach"?S.people[S.selected]:S.profile;
-  const who=id=>S.people[id]?.display_name||"Участник";
+  const who=id=>cleanName(S.people[id]?.display_name)?.trim()||"Имя не указано";
   const proteinGoal=p=>{const w=num(p?.weight_kg),factor={loss:1.4,maintain:1.2,gain:1.6}[p?.goal];return w&&factor?Math.round(w*factor):0};
   const waterGoal=p=>p?.weight_kg?Math.round(num(p.weight_kg)*35):0;
   const dayProtein=()=>Math.round(S.meals.reduce((a,m)=>a+num(m.protein_g),0)*10)/10;
@@ -110,7 +110,7 @@
 }
   function coachClientsView(){
   const clients=[...S.clients].sort((a,b)=>who(a.client_id).localeCompare(who(b.client_id),"ru"));
-  let h='<section class="coach-list-page"><div class="eyebrow">КОНСУЛЬТАНТ</div><h1>Мои клиенты</h1><p class="subtle">Нажми на имя, чтобы открыть дневник и посмотреть питание.</p><div class="simple-list">';
+  let h='<section class="coach-list-page"><div class="eyebrow">КОНСУЛЬТАНТ</div><div class="clients-header"><h1>Мои клиенты</h1><button class="inbox-refresh" data-action="refreshClients" title="Обновить имена клиентов" aria-label="Обновить список клиентов">'+icon("refresh")+'</button></div><p class="subtle">Нажми на имя, чтобы открыть дневник и посмотреть питание.</p><div class="simple-list">';
   if(!clients.length)h+='<div class="simple-list-empty"><h2>Пока нет клиентов</h2><p>Пригласи их по коду в разделе «Мой профиль».</p></div>';
   else h+=clients.map(l=>{
     const last=S.inbox.find(d=>d.client_id===l.client_id);
@@ -488,12 +488,13 @@
     const b=e.target.closest("[data-action]");if(!b)return;
     const action=b.dataset.action;
     if(["login","register","reset"].includes(action)){S.authMode=action;render();return}
-    if(action==="tab"){S.tab=b.dataset.tab;S.openMeal=false;if(isCoachApp)S.viewingClient=false;render();return}
+    if(action==="tab"){S.tab=b.dataset.tab;S.openMeal=false;if(isCoachApp){S.viewingClient=false;guarded(async()=>await loadLinks())}else render();return}
     if(action==="inboxFilter"){S.inboxFilter=b.dataset.filter;render();return}
     if(action==="openMeal"){S.mealType=b.dataset.type||"breakfast";S.openMeal=true;render();document.getElementById("newEntry")?.scrollIntoView({behavior:"smooth",block:"start"});return}
     if(action==="closeMeal"){S.openMeal=false;render();return}
     guarded(async()=>{
       if(action==="logout"){await db.auth.signOut();S.user=null;S.denied=false;render();return}
+      if(action==="refreshClients"){await loadLinks();notify("Имена клиентов обновлены");return}
       if(action==="chooseClient"){S.selected=b.dataset.id;S.tab="diary";S.viewingClient=true;await loadDay();return}
       if(action==="openProgressClient"){S.selected=b.dataset.id;S.tab="results";S.viewingClient=true;await loadDay();return}
       if(action==="backToList"){S.viewingClient=false;render();return}
