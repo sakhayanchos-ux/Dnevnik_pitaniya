@@ -615,3 +615,9 @@ body[data-app="coach"] .container{max-width:720px}
 .developer-credit a:focus-visible,.developer-credit a:hover{border-bottom-color:#153e57;text-decoration:underline}
 .auth-screen + .developer-credit{margin:-75px auto 0;position:relative;z-index:1;max-width:430px;border:0;padding:12px 18px 18px;background:transparent}
 @media(max-width:375px){.developer-credit{font-size:10px;gap:3px 7px}}
+
+/* Refresh client names when a profile was recently edited */
+.clients-header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:8px 0 10px}
+.clients-header h1{font-family:Georgia,"Times New Roman",serif;font-size:37px;font-weight:400;letter-spacing:-1px;margin:0;line-height:1.12;color:#332d33}
+.clients-header .inbox-refresh{height:40px;width:40px}
+@media(max-width:420px){.clients-header h1{font-size:34px}}
