@@ -668,3 +668,12 @@ body[data-app="coach"] .container{max-width:720px}
  .client-detail>h1{font-size:31px}
  .client-contact{padding:20px 18px}
 }
+
+/* Opt-in Web Push configuration on the client and consultant profiles */
+.push-settings{margin-top:18px;margin-bottom:19px}
+.push-settings h2{font-family:Georgia,"Times New Roman",serif;font-size:24px;line-height:1.2;font-weight:400;margin:0 0 10px}
+.push-settings .subtle{font-size:12px;line-height:1.55;color:#827782;margin:0 0 15px}
+.push-settings .primary{display:inline-flex;align-items:center;justify-content:center;gap:9px}
+.push-settings .primary .ui-icon{width:17px;height:17px}
+.push-settings .push-hint{font-size:11px;line-height:1.6;color:#8c8089;margin:13px 0 0}
+.push-settings .push-active{font-size:12px;color:#38765e;margin:13px 0 0;font-weight:640}
