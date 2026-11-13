@@ -105,7 +105,7 @@
       </button>`;
     }).join("");
   }
-  h+=`</div><div class="inbox-footer"><p>Записи поступают автоматически после сохранения. Здесь отображаются последние 300 дней.</p><details class="inbox-connection"><summary>Подключить клиента</summary><p>Отправьте клиенту этот код. Он введёт его в своём профиле.</p><div class="copy-code">${esc(S.user.id)}</div><button class="secondary" data-action="copyCode">Скопировать код</button></details></div></section>`;
+  h+=`</div><div class="inbox-footer"><p>Записи поступают автоматически после сохранения. Здесь отображаются последние 300 дней.</p></div></section>`;
   return h;
 }
   function coachClientsView(){
