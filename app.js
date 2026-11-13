@@ -172,7 +172,7 @@
       if(f.id==='authForm'){
         const email=val(f,'email'),password=val(f,'password');
         if(S.register){
-          const {data,error}=await db.auth.signUp({email,password,options:{data:{display_name:val(f,'name')}}});
+          const {data,error}=await db.auth.signUp({email,password,options:{data:{display_name:val(f,'name')},emailRedirectTo:window.location.origin+window.location.pathname}});
           if(error)throw error;
           if(data.session)await enter(data.user);else toast('Подтвердите регистрацию по ссылке в почте, затем войдите.');
         }else{
