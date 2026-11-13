@@ -384,6 +384,10 @@
     const last=await ok(db.from("nd_weights").select("weight_kg").eq("client_id",id).order("log_date",{ascending:false}).limit(1));
     const p=await ok(db.from("nd_profiles").update({weight_kg:last[0]?.weight_kg??weight}).eq("id",id).select().single());
     if(S.mode==="coach")S.people[id]=p;else S.profile=p;
+    if(isCoachApp){
+      const weights=await ok(db.from("nd_weights").select("client_id,log_date,weight_kg").eq("client_id",id).order("log_date",{ascending:true}).limit(120));
+      S.clientWeights[id]=weights;
+    }
     notify("Вес сохранён");await loadDay();
   }
   document.addEventListener("submit",e=>{
