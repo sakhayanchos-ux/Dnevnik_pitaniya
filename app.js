@@ -16,7 +16,13 @@
   const isoPlus=(dt,n)=>{const [y,m,d]=dt.split('-').map(Number);return new Date(Date.UTC(y,m-1,d+n)).toISOString().slice(0,10);};
   const nameFor=id=>S.profiles[id]?.display_name||'Участник';
   const who=()=>S.mode==='client'?S.user.id:S.selected;
-  const err=x=>x?.message||String(x)||'Неизвестная ошибка';
+  const err=x=>{
+    const message=x?.message||String(x)||'Неизвестная ошибка';
+    if(/Invalid login credentials/i.test(message))return 'Неверная почта или пароль. Нажмите «Забыли пароль?», чтобы восстановить доступ.';
+    if(/Email not confirmed/i.test(message))return 'Электронная почта ещё не подтверждена. Проверьте письмо о регистрации.';
+    if(/rate limit|too many requests/i.test(message))return 'Слишком много попыток. Попробуйте немного позже.';
+    return message;
+  };
   let timer;
   function toast(text){const t=$('#toast');if(!t)return;t.textContent=text;t.classList.add('show');clearTimeout(timer);timer=setTimeout(()=>t.classList.remove('show'),4400);}
   async function check(p){const {data,error}=await p;if(error)throw error;return data;}
@@ -291,8 +297,8 @@
     });
   });
   try{
+    db.auth.onAuthStateChange((event,session)=>{if(event==='PASSWORD_RECOVERY'){S.recovery=true;S.resetRequest=false;S.user=session?.user||S.user;mainView();}else if(event==='SIGNED_OUT'){S.user=null;S.recovery=false;mainView();}});
     const {data:{session},error}=await db.auth.getSession();if(error)throw error;
     if(session?.user){if(S.recovery){S.user=session.user;mainView();}else await enter(session.user);}else mainView();
-    db.auth.onAuthStateChange((event,session)=>{if(event==='PASSWORD_RECOVERY'){S.recovery=true;S.resetRequest=false;S.user=session?.user||S.user;mainView();}else if(event==='SIGNED_OUT'){S.user=null;S.recovery=false;mainView();}});
   }catch(e){console.error(e);$('#app').innerHTML='<div class="auth"><div class="auth-card"><h2>Не удалось открыть приложение</h2><p>'+esc(err(e))+'</p><button class="btn primary" onclick="location.reload()">Повторить</button></div></div>';}
 })();
