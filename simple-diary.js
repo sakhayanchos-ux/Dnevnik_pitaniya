@@ -9,6 +9,7 @@
   const S={user:null,profile:null,people:{},consultants:[],clients:[],mode:"client",tab:"diary",date:localDate(),selected:null,day:null,meals:[],mealReviews:[],dayReviews:[],weights:[],photo:{},openMeal:false,mealType:"breakfast",authMode:"login",recovery:location.hash.includes("type=recovery"),busy:false};
   const esc=x=>String(x??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   const num=x=>Number(x||0);
+  const cleanName=x=>/^(?:phone[._ -]?[0-9+]+|[+0-9][0-9 .-]{7,})$/i.test(String(x||""))?"":String(x||"");
   const fmt=x=>x?String(x).slice(0,5):"";
   const v=(form,name)=>String(form.elements.namedItem(name)?.value??"").trim();
   const notify=m=>{toastEl.textContent=m;toastEl.classList.add("show");clearTimeout(notify.timer);notify.timer=setTimeout(()=>toastEl.classList.remove("show"),4200)};
@@ -73,7 +74,7 @@
   function diaryView(){
     const coach=S.mode==="coach",p=currentProfile(),wGoal=waterGoal(p),pGoal=proteinGoal(p),water=num(S.day?.water_ml),protein=dayProtein(),wp=wGoal?Math.min(100,Math.round(100*water/wGoal)):0,pp=pGoal?Math.min(100,Math.round(100*protein/pGoal)):0;
     const state=reviewStatus();
-    let h=`<div class="page-heading"><div><div class="eyebrow">${coach?"ДНЕВНИК КЛИЕНТА":"МОЙ ДНЕВНИК"}</div><h1>${coach?esc(who(S.selected)):"Привет"+(p?.display_name?`, ${esc(p.display_name.split(" ")[0])}`:"")+"!"}</h1><p>Питание, вода и самочувствие за день</p></div><span class="state ${state}">${state==="done"?"Проверено":state==="waiting"?"Ждёт проверки":"Нет записей"}</span></div>
+    let h=`<div class="page-heading"><div><div class="eyebrow">${coach?"ДНЕВНИК КЛИЕНТА":"МОЙ ДНЕВНИК"}</div><h1>${coach?esc(who(S.selected)):"Привет"+(cleanName(p?.display_name)?`, ${esc(cleanName(p.display_name).split(" ")[0])}`:"")+"!"}</h1><p>Питание, вода и самочувствие за день</p></div><span class="state ${state}">${state==="done"?"Проверено":state==="waiting"?"Ждёт проверки":"Нет записей"}</span></div>
       <div class="date-bar"><button data-action="prevDay">‹</button><label><span>Дата дневника</span><input type="date" id="diaryDate" value="${esc(S.date)}"></label><button data-action="nextDay">›</button></div>
       <div class="indicators">
         <section class="indicator"><div class="indicator-title"><strong>💧 Вода</strong><span>${wp}%</span></div><div class="graphic">${glassSvg(wp)}<div><b>${water.toLocaleString("ru-RU")} мл</b><small>${wGoal?`из ${wGoal.toLocaleString("ru-RU")} мл`:"Укажите вес"}</small></div></div>
@@ -119,7 +120,7 @@
   function profileView(){
     const coach=S.mode==="coach",p=currentProfile();
     let h=`<div class="intro"><h1>${coach?"Профиль клиента":"Мой профиль"}</h1><p>Данные для автоматического расчёта воды и белка</p></div><section class="card"><form id="${coach?"coachProfileForm":"profileForm"}">`;
-    if(!coach)h+=formField("name","Имя и фамилия","text",p?.display_name||"","required maxlength=120");
+    if(!coach)h+=formField("name","Имя и фамилия","text",cleanName(p?.display_name)||"","required maxlength=120");
     h+=`${formField("weight","Текущий вес, кг","number",p?.weight_kg??"","min=20 max=500 step=.1")}<label class="field"><span>Моя цель</span><select name="goal"><option value="">Выбрать</option>${[["loss","Снижение веса"],["maintain","Поддержание веса"],["gain","Набор мышечной массы"]].map(([key,label])=>`<option value="${key}" ${p?.goal===key?"selected":""}>${label}</option>`).join("")}</select></label>${formField("target","Желаемый вес, кг (при снижении или наборе)","number",p?.target_weight_kg??"","min=20 max=500 step=.1")}<button class="primary full">Сохранить профиль</button></form></section>`;
     if(!coach)h+=`<section class="card"><h2>Мой консультант</h2><p class="subtle">Введите код консультанта, чтобы он мог проверять дневник.</p><form id="linkForm">${formField("code","Код консультанта","text","","required placeholder='Вставьте код'")}<button class="primary full">Подключить</button></form>${S.consultants.map(l=>`<div class="connected"><b>${esc(who(l.consultant_id))}</b><button data-action="unlink" data-id="${esc(l.consultant_id)}">Отключить</button></div>`).join("")}</section>`;
     return h;
@@ -143,7 +144,7 @@
     return h;
   }
   function render(){
-    if(!S.user){root.innerHTML=authView();return}
+    if(!S.user||S.recovery){root.innerHTML=authView();return}
     let h=`<div class="container">${top()}`;
     if(S.mode==="coach")h+=coachPanel();
     if(S.mode==="coach"&&!S.selected)h+='<section class="card"><h2>Выберите клиента</h2><p class="subtle">Когда клиент подключится по вашему коду, его дневник появится здесь.</p></section>';
