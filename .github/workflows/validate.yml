@@ -14,15 +14,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Проверить синтаксис JavaScript
-        run: node --check app.js
-      - name: Проверить основные файлы
+      - name: Проверить синтаксис дневника
+        run: node --check simple-diary.js
+      - name: Проверить основные файлы и функции
         run: |
           test -s index.html
-          test -s styles.css
-          grep -q 'resetPasswordForEmail' app.js
-          grep -q 'newPasswordForm' app.js
-          grep -q 'styles.css?v=' index.html
-          grep -q 'app.js?v=' index.html
-          grep -q 'waiting-card' app.js
-          grep -q 'cleanName' app.js
+          test -s simple-diary.css
+          test -s simple-diary.js
+          grep -q 'simple-diary.css' index.html
+          grep -q 'simple-diary.js' index.html
+          grep -q 'resetPasswordForEmail' simple-diary.js
+          grep -q 'newPasswordForm' simple-diary.js
+          grep -q 'snack1' simple-diary.js
+          grep -q 'snack2' simple-diary.js
+          grep -q 'nd-meal-photos' simple-diary.js
+          grep -q 'dayReviewForm' simple-diary.js
