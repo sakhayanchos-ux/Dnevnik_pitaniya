@@ -116,8 +116,8 @@
   let h='<section class="coach-list-page"><div class="eyebrow">КОНСУЛЬТАНТ</div><div class="clients-header"><h1>Мои клиенты</h1><button class="inbox-refresh" data-action="refreshClients" title="Обновить имена клиентов" aria-label="Обновить список клиентов">'+icon("refresh")+'</button></div><p class="subtle">Нажми на имя, чтобы посмотреть клиента или попросить отправить дневник.</p><div class="simple-list">';
   if(!clients.length)h+='<div class="simple-list-empty"><h2>Пока нет клиентов</h2><p>Пригласи их по коду в разделе «Мой профиль».</p></div>';
   else h+=clients.map(l=>{
-    const last=S.inbox.find(d=>d.client_id===l.client_id);
-    const status=!last?"Пока нет записей":last.status==="pending"?"Ожидает проверки":"Проверено";
+    const last=S.inbox.find(d=>d.client_id===l.client_id&&d.log_date===localDate());
+    const status=!last?"За сегодня не отправлен":last.status==="pending"?"Ожидает проверки":"Проверено";
     return `<button class="simple-client-row" data-action="chooseClient" data-id="${esc(l.client_id)}"><span class="client-monogram">${esc(who(l.client_id).trim().slice(0,1).toLocaleUpperCase("ru"))}</span><span class="client-copy"><strong>${esc(who(l.client_id))}</strong><small>${esc(status)}</small></span>${icon("chevron")}</button>`;
   }).join("");
   return h+"</div></section>";
@@ -307,6 +307,7 @@
       if(tab==="inbox")await loadInbox();
       if(tab==="diary"){
         S.clientRequests=await ok(db.from("nd_diary_requests").select("client_id,log_date,requested_at").eq("consultant_id",userId).eq("log_date",localDate()));
+        await loadInbox();
       }
       if(seq===S.navSeq&&S.user?.id===userId&&S.tab===tab&&!S.viewingClient)render();
     }catch(e){
@@ -598,7 +599,16 @@
     guarded(async()=>{
       if(action==="logout"){await db.auth.signOut();S.user=null;S.denied=false;render();return}
       if(action==="refreshClients"){await loadLinks();notify("Имена клиентов обновлены");return}
-      if(action==="chooseClient"){S.selected=b.dataset.id;S.tab="diary";S.viewingClient=true;render();return}
+      if(action==="chooseClient"){
+        S.selected=b.dataset.id;S.tab="diary";S.viewingClient=true;
+        const selectedId=S.selected;
+        render();
+        void (async()=>{try{
+          await loadInbox();
+          if(S.selected===selectedId&&S.viewingClient&&S.tab==="diary")render();
+        }catch(e){console.warn("Не удалось обновить статус дневника",e)}})();
+        return;
+      }
       if(action==="openProgressClient"){S.selected=b.dataset.id;S.tab="results";S.viewingClient=true;await loadDay();return}
       if(action==="backToList"){S.viewingClient=false;render();return}
       if(action==="openInboxDay"){S.selected=b.dataset.client;S.date=b.dataset.date;S.tab="diary";S.viewingClient=true;await loadDay();return}
