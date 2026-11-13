@@ -37,7 +37,7 @@
     inbox:'<path d="M4 4h16v15H4V4Z"/><path d="M4 14h5l2 3h2l2-3h5"/>',
     refresh:'<path d="M20 7v5h-5"/><path d="M4 17v-5h5"/><path d="M5.5 9a7.2 7.2 0 0 1 12.6-2L20 12M4 12l1.9 5a7.2 7.2 0 0 0 12.6-2"/>'
   }[name]||'')+'</svg>';
-  const S={user:null,profile:null,people:{},consultants:[],clients:[],mode:isCoachApp?"coach":"client",denied:false,pushEnabled:false,tab:isCoachApp?"inbox":"diary",inboxFilter:"pending",inbox:[],submission:null,clientRequest:null,clientRequests:[],clientWeights:{},viewingClient:false,date:initialDate||localDate(),selected:null,day:null,meals:[],mealReviews:[],dayReviews:[],weights:[],photo:{},openMeal:false,mealType:"breakfast",authMode:"login",recovery:recoveryFromUrl,busy:false,navSeq:0};
+  const S={user:null,profile:null,people:{},consultants:[],clients:[],mode:isCoachApp?"coach":"client",denied:false,pushEnabled:false,tab:isCoachApp?"inbox":"diary",inboxFilter:"pending",inbox:[],submission:null,clientRequest:null,clientRequests:[],clientWeights:{},viewingClient:false,receivedDiary:false,receivedDiaryLoading:false,date:initialDate||localDate(),selected:null,day:null,meals:[],mealReviews:[],dayReviews:[],weights:[],photo:{},openMeal:false,mealType:"breakfast",authMode:"login",recovery:recoveryFromUrl,busy:false,navSeq:0};
   const esc=x=>String(x??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   const num=x=>Number(x||0);
   const cleanName=x=>/^(?:phone[._ -]?[0-9+]+|[+0-9][0-9 .-]{7,})$/i.test(String(x||""))?"":String(x||"");
@@ -148,7 +148,7 @@
 }
 
   function coachDetailBack(){
-  return `<button class="coach-back" data-action="backToList">${icon("chevron")} ${S.tab==="results"?"Все результаты":"Все клиенты"}</button>`;
+  return `<button class="coach-back" data-action="backToList">${icon("chevron")} ${S.receivedDiary?"Ко входящим":S.tab==="results"?"Все результаты":"Все клиенты"}</button>`;
 }
 
   function photoItem(m){
@@ -384,7 +384,13 @@
     }
     let h=`<div class="container">${top()}`;
     if(isCoachApp){
-      if(S.tab==="inbox")h+=inboxView();
+      if(S.tab==="inbox"){
+        if(S.receivedDiary&&S.selected){
+          h+=coachDetailBack()+(S.receivedDiaryLoading?
+            '<section class="card received-diary-loading"><p>Загружаем отправленный дневник…</p></section>':
+            diaryView());
+        }else h+=inboxView();
+      }
       else if(S.tab==="profile")h+=coachProfileView();
       else if(S.tab==="results")h+=S.viewingClient&&S.selected?coachDetailBack()+resultsView():coachProgressView();
       else h+=S.viewingClient&&S.selected?coachDetailBack()+coachClientCard():coachClientsView();
@@ -411,7 +417,7 @@
       const deepClient=callbackQuery.get("client");
       const deepDate=callbackQuery.get("date");
       if(deepClient&&S.clients.some(x=>x.client_id===deepClient)){
-        S.selected=deepClient;S.tab="diary";S.viewingClient=true;
+        S.selected=deepClient;S.tab="diary";S.viewingClient=true;S.receivedDiary=false;
         if(/^\d{4}-\d{2}-\d{2}$/.test(deepDate||""))S.date=deepDate;
         await loadDay();
       }
@@ -658,7 +664,7 @@
       if(!["inbox","diary","results","profile"].includes(tab))return;
       S.tab=tab;
       S.openMeal=false;
-      if(isCoachApp)S.viewingClient=false;
+      if(isCoachApp){S.viewingClient=false;S.receivedDiary=false;S.receivedDiaryLoading=false;}
       const seq=++S.navSeq;
       render(); // Immediate tab highlight and content, regardless of network state.
       if(isCoachApp&&tab!=="profile"){
@@ -683,7 +689,7 @@
       if(action==="logout"){if(S.user&&S.pushEnabled)await unsubscribePush();await db.auth.signOut();S.user=null;S.denied=false;S.pushEnabled=false;render();return}
       if(action==="refreshClients"){await loadLinks();notify("Имена клиентов обновлены");return}
       if(action==="chooseClient"){
-        S.selected=b.dataset.id;S.tab="diary";S.viewingClient=true;
+        S.selected=b.dataset.id;S.tab="diary";S.viewingClient=true;S.receivedDiary=false;
         const selectedId=S.selected;
         render();
         void (async()=>{try{
@@ -692,9 +698,37 @@
         }catch(e){console.warn("Не удалось обновить статус дневника",e)}})();
         return;
       }
-      if(action==="openProgressClient"){S.selected=b.dataset.id;S.tab="results";S.viewingClient=true;await loadDay();return}
-      if(action==="backToList"){S.viewingClient=false;render();return}
-      if(action==="openInboxDay"){S.selected=b.dataset.client;S.date=b.dataset.date;S.tab="diary";S.viewingClient=true;await loadDay();return}
+      if(action==="openProgressClient"){S.selected=b.dataset.id;S.tab="results";S.viewingClient=true;S.receivedDiary=false;await loadDay();return}
+      if(action==="backToList"){
+        S.viewingClient=false;
+        if(S.receivedDiary){S.receivedDiary=false;S.receivedDiaryLoading=false;S.tab="inbox";}
+        render();return;
+      }
+      if(action==="openInboxDay"){
+        if(!isCoachApp)throw Error("Доступ только для консультанта");
+        const clientId=b.dataset.client,logDate=b.dataset.date;
+        if(!S.clients.some(link=>link.client_id===clientId))throw Error("Клиент не подключён");
+        if(!S.inbox.some(item=>item.client_id===clientId&&item.log_date===logDate))
+          throw Error("Не удалось найти отправленный дневник. Обновите входящие.");
+        S.selected=clientId;
+        S.date=logDate;
+        S.tab="inbox";
+        S.viewingClient=true;
+        S.receivedDiary=true;
+        S.receivedDiaryLoading=true;
+        render();
+        try{
+          await loadDay();
+          if(!S.day||!S.submission)throw Error("Не удалось загрузить отправленный дневник. Обновите входящие.");
+        }catch(error){
+          S.receivedDiary=false;S.viewingClient=false;
+          throw error;
+        }finally{
+          S.receivedDiaryLoading=false;
+          render();
+        }
+        return;
+      }
       if(action==="requestDiary"){
         if(!isCoachApp||!S.clients.some(l=>l.client_id===b.dataset.id))throw Error("Клиент не подключён");
         const id=b.dataset.id,today=localDate();
