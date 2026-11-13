@@ -593,3 +593,25 @@ body[data-app="coach"] .container{max-width:720px}
  .progress-client-copy small{font-size:10px}
  .coach-nav button{font-size:9px!important}
 }
+
+/* Subtle, tappable developer credit in both client and consultant apps */
+.developer-credit {
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  flex-wrap:wrap;
+  gap:5px 9px;
+  padding:18px 12px 22px;
+  margin-top:20px;
+  border-top:1px solid #e4dbe0;
+  color:#91848f;
+  font-size:11px;
+  line-height:1.65;
+  text-align:center;
+  letter-spacing:.1px;
+}
+.developer-credit strong{font-weight:700;color:#6f6372}
+.developer-credit a{color:#153e57;font-weight:710;text-decoration:none;border-bottom:1px solid #9fb9c6;padding:2px 0;overflow-wrap:anywhere}
+.developer-credit a:focus-visible,.developer-credit a:hover{border-bottom-color:#153e57;text-decoration:underline}
+.auth-screen + .developer-credit{margin:-75px auto 0;position:relative;z-index:1;max-width:430px;border:0;padding:12px 18px 18px;background:transparent}
+@media(max-width:375px){.developer-credit{font-size:10px;gap:3px 7px}}
