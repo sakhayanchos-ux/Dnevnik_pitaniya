@@ -1,6 +1,7 @@
 (async function diaryApp(){
   const {createClient}=await import("https://esm.sh/@supabase/supabase-js@2.57.0");
   const db=createClient("https://xprobrrrpybmzbucakws.supabase.co","sb_publishable_UETDRxFcw79NwwBmvjI4sw_7F5y5B28");
+  const APP_URL="https://sakhayanchos-ux.github.io/Dnevnik_pitaniya/";
   const root=document.getElementById("app");
   const toastEl=document.getElementById("toast");
   const mealNames={breakfast:"Завтрак",snack1:"Первый перекус",lunch:"Обед",snack2:"Второй перекус",dinner:"Ужин",other:"Другое"};
@@ -24,7 +25,7 @@
   const v=(form,name)=>String(form.elements.namedItem(name)?.value??"").trim();
   const notify=m=>{toastEl.textContent=m;toastEl.classList.add("show");clearTimeout(notify.timer);notify.timer=setTimeout(()=>toastEl.classList.remove("show"),4200)};
   const ok=async p=>{const {data,error}=await p;if(error)throw error;return data};
-  const showError=e=>{console.error(e);const m=e?.message||String(e);notify(/Invalid login credentials/i.test(m)?"Неверная почта или пароль":/Email not confirmed/i.test(m)?"Подтвердите электронную почту":m)};
+  const showError=e=>{console.error(e);const m=e?.message||String(e);notify(/Invalid login credentials/i.test(m)?"Неверная почта или пароль. Нажмите «Забыли пароль?»":/User already registered/i.test(m)?"Аккаунт уже есть. Выберите «Войти» или восстановите пароль.":/Email not confirmed/i.test(m)?"Подтвердите электронную почту":m)};
   async function guarded(fn){if(S.busy)return;S.busy=true;try{await fn()}catch(e){showError(e)}finally{S.busy=false}}
   function localDate(){return new Date().toLocaleDateString("sv-SE")}
   function dateAdd(date,n){const [y,m,d]=date.split("-").map(Number);return new Date(Date.UTC(y,m-1,d+n)).toISOString().slice(0,10)}
@@ -46,7 +47,7 @@
   function authView(){
     if(S.recovery)return `<div class="auth-screen"><div class="auth-card"><div class="logo">Д</div><h1>Новый пароль</h1><p>Придумайте пароль для входа в дневник.</p><form id="newPasswordForm">${formField("newPassword","Новый пароль","password","","required minlength=8 autocomplete=new-password")}${formField("againPassword","Повторите пароль","password","","required minlength=8 autocomplete=new-password")}<button class="primary full">Сохранить пароль</button></form></div></div>`;
     const isRegister=S.authMode==="register",isReset=S.authMode==="reset";
-    return `<div class="auth-screen"><div class="auth-card"><div class="logo">Д</div><h1>Дневник питания</h1><p>Открой, заполни и получи рекомендации консультанта.</p><h2>${isReset?"Восстановление пароля":isRegister?"Регистрация":"Вход"}</h2><form id="${isReset?"resetForm":"authForm"}">${isRegister?formField("name","Имя и фамилия","text","","required maxlength=120"):""}${formField("email","Электронная почта","email","","required autocomplete=email")}${isReset?"":formField("password","Пароль","password","","required minlength=6 autocomplete=current-password")}<button class="primary full">${isReset?"Отправить ссылку":isRegister?"Зарегистрироваться":"Войти"}</button></form><div class="auth-links">${isReset?'<button data-action="login">← Назад ко входу</button>':`<button data-action="${isRegister?"login":"register"}">${isRegister?"Уже есть аккаунт? Войти":"Создать аккаунт"}</button>${isRegister?"":'<button data-action="reset">Забыли пароль?</button>'}`}</div></div></div>`;
+    return `<div class="auth-screen"><div class="auth-card"><div class="logo">Д</div><h1>Дневник питания</h1><p>Открой, заполни и получи рекомендации консультанта.</p><h2>${isReset?"Восстановление пароля":isRegister?"Регистрация":"Вход"}</h2><form id="${isReset?"resetForm":"authForm"}">${isRegister?formField("name","Имя и фамилия","text","","required maxlength=120"):""}${formField("email","Электронная почта","email","","required autocomplete=email")}${isReset?"":formField("password","Пароль","password","","required minlength=6 autocomplete=current-password")}<button class="primary full">${isReset?"Отправить ссылку":isRegister?"Зарегистрироваться":"Войти"}</button></form>${isReset?`<details class="recovery-fallback"><summary>Ссылка ведёт на localhost? Войти по ссылке вручную</summary><p>Откройте новое письмо, зажмите кнопку восстановления и выберите «Скопировать ссылку». Не открывайте ссылку. Вставьте её сюда — это безопасный способ завершить восстановление на нашем сайте.</p><form id="linkRecoveryForm"><label class="field"><span>Ссылка из письма</span><textarea name="recoveryLink" rows="3" placeholder="Вставьте ссылку из письма" required autocomplete="off" autocapitalize="off" spellcheck="false"></textarea></label><button class="primary full">Продолжить восстановление</button></form><p class="secret-hint">Не отправляйте эту ссылку другим людям.</p></details>`:""}<div class="auth-links">${isReset?'<button data-action="login">← Назад ко входу</button>':`<button data-action="${isRegister?"login":"register"}">${isRegister?"Уже есть аккаунт? Войти":"Создать аккаунт"}</button>${isRegister?"":'<button data-action="reset">Забыли пароль?</button>'}`}</div></div></div>`;
   }
   function top(){
     const coach=S.mode==="coach";
@@ -251,15 +252,40 @@
       if(f.id==="authForm"){
         const email=v(f,"email"),password=v(f,"password");
         if(S.authMode==="register"){
-          const {data,error}=await db.auth.signUp({email,password,options:{data:{display_name:v(f,"name")},emailRedirectTo:location.origin+location.pathname}});
+          const {data,error}=await db.auth.signUp({email,password,options:{data:{display_name:v(f,"name")},emailRedirectTo:APP_URL}});
           if(error)throw error;
           if(data.session)await enter(data.user);else notify("Проверьте почту и подтвердите регистрацию");
         }else{const {data,error}=await db.auth.signInWithPassword({email,password});if(error)throw error;await enter(data.user)}
         return;
       }
       if(f.id==="resetForm"){
-        await ok(db.auth.resetPasswordForEmail(v(f,"email"),{redirectTo:location.origin+location.pathname}));
-        S.authMode="login";render();notify("Если почта зарегистрирована, ссылка отправлена");return;
+        await ok(db.auth.resetPasswordForEmail(v(f,"email"),{redirectTo:APP_URL}));
+        S.authMode="reset";render();notify("Письмо отправлено. Если ссылка ведёт на localhost, используйте способ ниже.");return;
+      }
+      if(f.id==="linkRecoveryForm"){
+        const raw=v(f,"recoveryLink");
+        let link=raw;
+        let tokenHash=null;
+        try {
+          for(let i=0;i<3;i++){
+            const parsed=new URL(link);
+            if(parsed.hostname==="xprobrrrpybmzbucakws.supabase.co"&&parsed.pathname==="/auth/v1/verify"){
+              if(parsed.searchParams.get("type")!=="recovery")throw Error("Это не ссылка для восстановления пароля");
+              tokenHash=parsed.searchParams.get("token")||parsed.searchParams.get("token_hash");
+              break;
+            }
+            const nested=parsed.searchParams.get("url")||parsed.searchParams.get("u")||parsed.searchParams.get("q");
+            if(!nested||!nested.startsWith("https://"))break;
+            link=nested;
+          }
+        }catch(e){if(e?.message==="Это не ссылка для восстановления пароля")throw e}
+        if(!tokenHash||! /^[a-zA-Z0-9._-]{10,512}$/.test(tokenHash))throw Error("Скопируйте полную ссылку из нового письма о восстановлении.");
+        const {data,error}=await db.auth.verifyOtp({token_hash:tokenHash,type:"recovery"});
+        if(error)throw Error("Ссылка уже использована или истекла. Запросите новое письмо и скопируйте ссылку, не открывая её.");
+        if(!data?.session||!data?.user)throw Error("Не удалось подтвердить ссылку. Запросите новое письмо.");
+        S.user=data.user;S.recovery=true;
+        render();notify("Ссылка подтверждена. Теперь придумайте новый пароль.");
+        return;
       }
       if(f.id==="newPasswordForm"){
         const a=v(f,"newPassword"),b=v(f,"againPassword");
