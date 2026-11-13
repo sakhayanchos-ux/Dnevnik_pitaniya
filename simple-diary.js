@@ -11,6 +11,8 @@
   const {createClient}=await import("https://esm.sh/@supabase/supabase-js@2.57.0");
   const db=createClient("https://xprobrrrpybmzbucakws.supabase.co","sb_publishable_UETDRxFcw79NwwBmvjI4sw_7F5y5B28");
   const APP_URL="https://sakhayanchos-ux.github.io/Dnevnik_pitaniya/";
+  const isCoachApp=/\/consultant(?:\/|\/index\.html)?$/.test(location.pathname);
+  const assetRoot=isCoachApp?"../":"./";
   const root=document.getElementById("app");
   const toastEl=document.getElementById("toast");
   const mealNames={breakfast:"Завтрак",snack1:"Первый перекус",lunch:"Обед",snack2:"Второй перекус",dinner:"Ужин",other:"Другое"};
@@ -26,7 +28,7 @@
     plus:'<path d="M12 4v16M4 12h16"/>',
     chevron:'<path d="m9 5 7 7-7 7"/>'
   }[name]||'')+'</svg>';
-  const S={user:null,profile:null,people:{},consultants:[],clients:[],mode:"client",tab:"diary",date:localDate(),selected:null,day:null,meals:[],mealReviews:[],dayReviews:[],weights:[],photo:{},openMeal:false,mealType:"breakfast",authMode:"login",recovery:recoveryFromUrl,busy:false};
+  const S={user:null,profile:null,people:{},consultants:[],clients:[],mode:isCoachApp?"coach":"client",denied:false,tab:"diary",date:localDate(),selected:null,day:null,meals:[],mealReviews:[],dayReviews:[],weights:[],photo:{},openMeal:false,mealType:"breakfast",authMode:"login",recovery:recoveryFromUrl,busy:false};
   const esc=x=>String(x??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   const num=x=>Number(x||0);
   const cleanName=x=>/^(?:phone[._ -]?[0-9+]+|[+0-9][0-9 .-]{7,})$/i.test(String(x||""))?"":String(x||"");
@@ -54,14 +56,12 @@
     return `<label class="field"><span>${title}</span><input name="${name}" type="${type}" value="${esc(value)}" ${attrs}></label>`;
   }
   function authView(){
-    if(S.recovery)return `<div class="auth-screen"><div class="auth-card"><div class="logo"><img src="./diary-icon.webp?v=1" alt="Дневник питания" class="app-logo" width="44" height="44"></div><h1>Новый пароль</h1><p>Придумайте пароль для входа в дневник.</p><form id="newPasswordForm">${formField("newPassword","Новый пароль","password","","required minlength=8 autocomplete=new-password")}${formField("againPassword","Повторите пароль","password","","required minlength=8 autocomplete=new-password")}<button class="primary full">Сохранить пароль</button></form></div></div>`;
-    const isRegister=S.authMode==="register",isReset=S.authMode==="reset";
-    return `<div class="auth-screen"><div class="auth-card"><div class="logo"><img src="./diary-icon.webp?v=1" alt="Дневник питания" class="app-logo" width="44" height="44"></div><h1>Дневник питания</h1><p>Открой, заполни и получи рекомендации консультанта.</p><h2>${isReset?"Восстановление пароля":isRegister?"Регистрация":"Вход"}</h2><form id="${isReset?"resetForm":"authForm"}">${isRegister?formField("name","Имя и фамилия","text","","required maxlength=120"):""}${formField("email","Электронная почта","email","","required autocomplete=email")}${isReset?"":formField("password","Пароль","password","","required minlength=6 autocomplete=current-password")}<button class="primary full">${isReset?"Отправить ссылку":isRegister?"Зарегистрироваться":"Войти"}</button></form>${isReset?`<details class="recovery-fallback"><summary>Ссылка ведёт на localhost? Войти по ссылке вручную</summary><p>Откройте новое письмо, зажмите кнопку восстановления и выберите «Скопировать ссылку». Не открывайте ссылку. Вставьте её сюда — это безопасный способ завершить восстановление на нашем сайте.</p><form id="linkRecoveryForm"><label class="field"><span>Ссылка из письма</span><textarea name="recoveryLink" rows="3" placeholder="Вставьте ссылку из письма" required autocomplete="off" autocapitalize="off" spellcheck="false"></textarea></label><button class="primary full">Продолжить восстановление</button></form><p class="secret-hint">Не отправляйте эту ссылку другим людям.</p></details>`:""}<div class="auth-links">${isReset?'<button data-action="login">← Назад ко входу</button>':`<button data-action="${isRegister?"login":"register"}">${isRegister?"Уже есть аккаунт? Войти":"Создать аккаунт"}</button>${isRegister?"":'<button data-action="reset">Забыли пароль?</button>'}`}</div></div></div>`;
+    if(S.recovery)return `<div class="auth-screen"><div class="auth-card"><div class="logo"><img src="${assetRoot}diary-icon.webp?v=1" alt="Дневник питания" class="app-logo" width="44" height="44"></div><h1>Новый пароль</h1><p>Придумайте пароль для входа в дневник.</p><form id="newPasswordForm">${formField("newPassword","Новый пароль","password","","required minlength=8 autocomplete=new-password")}${formField("againPassword","Повторите пароль","password","","required minlength=8 autocomplete=new-password")}<button class="primary full">Сохранить пароль</button></form></div></div>`;
+    const isRegister=!isCoachApp&&S.authMode==="register",isReset=S.authMode==="reset";
+    return `<div class="auth-screen"><div class="auth-card"><div class="logo"><img src="${assetRoot}diary-icon.webp?v=1" alt="Дневник питания" class="app-logo" width="44" height="44"></div><h1>${isCoachApp?"Кабинет консультанта":"Дневник питания"}</h1><p>${isCoachApp?"Просматривайте дневники клиентов и оставляйте рекомендации.":"Открой, заполни и получи рекомендации консультанта."}</p><h2>${isReset?"Восстановление пароля":isRegister?"Регистрация":"Вход"}</h2><form id="${isReset?"resetForm":"authForm"}">${isRegister?formField("name","Имя и фамилия","text","","required maxlength=120"):""}${formField("email","Электронная почта","email","","required autocomplete=email")}${isReset?"":formField("password","Пароль","password","","required minlength=6 autocomplete=current-password")}<button class="primary full">${isReset?"Отправить ссылку":isRegister?"Зарегистрироваться":"Войти"}</button></form>${isReset?`<details class="recovery-fallback"><summary>Ссылка ведёт на localhost? Войти по ссылке вручную</summary><p>Откройте новое письмо, зажмите кнопку восстановления и выберите «Скопировать ссылку». Не открывайте ссылку. Вставьте её сюда — это безопасный способ завершить восстановление на нашем сайте.</p><form id="linkRecoveryForm"><label class="field"><span>Ссылка из письма</span><textarea name="recoveryLink" rows="3" placeholder="Вставьте ссылку из письма" required autocomplete="off" autocapitalize="off" spellcheck="false"></textarea></label><button class="primary full">Продолжить восстановление</button></form><p class="secret-hint">Не отправляйте эту ссылку другим людям.</p></details>`:""}<div class="auth-links">${isReset?'<button data-action="login">← Назад ко входу</button>':`<button data-action="${isRegister?"login":"register"}">${isRegister?"Уже есть аккаунт? Войти":"Создать аккаунт"}</button>${isRegister?"":'<button data-action="reset">Забыли пароль?</button>'}`}</div></div></div>`;
   }
   function top(){
-    const coach=S.mode==="coach";
-    return `<header class="top"><div class="brand"><span class="logo-mini"><img src="./diary-icon.webp?v=1" alt="Дневник питания" class="app-logo" width="44" height="44"></span><div><strong>Дневник питания</strong><small>ЛИЧНЫЙ ЖУРНАЛ</small></div></div><button class="quiet" data-action="logout">Выйти</button></header>
-    <div class="switch"><button class="${coach?"":"selected"}" data-action="clientMode">Мой дневник</button><button class="${coach?"selected":""}" data-action="coachMode">Консультант</button></div>`;
+    return `<header class="top"><div class="brand"><span class="logo-mini"><img src="${assetRoot}diary-icon.webp?v=1" alt="Дневник питания" class="app-logo" width="44" height="44"></span><div><strong>${isCoachApp?"Кабинет консультанта":"Дневник питания"}</strong><small>${isCoachApp?"ПРОВЕРКА ПИТАНИЯ":"ЛИЧНЫЙ ЖУРНАЛ"}</small></div></div><button class="quiet" data-action="logout">Выйти</button></header>`;
   }
   function coachPanel(){
     let h=`<section class="coach-panel"><div class="section-title"><h2>Мои клиенты</h2><span>${S.clients.length}</span></div>`;
@@ -71,7 +71,7 @@
     return h;
   }
   function bottom(){
-    return `<nav class="bottom-nav" aria-label="Разделы"><button data-action="tab" data-tab="diary" class="${S.tab==="diary"?"selected":""}">${icon("book")}Дневник</button><button data-action="tab" data-tab="results" class="${S.tab==="results"?"selected":""}">${icon("chart")}Результаты</button><button data-action="tab" data-tab="profile" class="${S.tab==="profile"?"selected":""}">${icon("user")}Профиль</button></nav>`;
+    return `<nav class="bottom-nav" aria-label="Разделы"><button data-action="tab" data-tab="diary" class="${S.tab==="diary"?"selected":""}">${icon("book")}${isCoachApp?"Клиенты":"Дневник"}</button><button data-action="tab" data-tab="results" class="${S.tab==="results"?"selected":""}">${icon("chart")}${isCoachApp?"Прогресс":"Результаты"}</button><button data-action="tab" data-tab="profile" class="${S.tab==="profile"?"selected":""}">${icon("user")}${isCoachApp?"Данные":"Профиль"}</button></nav>`;
   }
   function photoItem(m){
     const reviews=S.mealReviews.filter(r=>r.meal_id===m.id);
@@ -165,6 +165,10 @@
   }
   function render(){
     if(!S.user||S.recovery){root.innerHTML=authView();return}
+    if(S.denied){
+      root.innerHTML=`<div class="auth-screen"><section class="auth-card"><h1>Только для консультантов</h1><p>Этот кабинет открывается только для подтверждённых консультантов. У клиентов есть отдельный дневник.</p><p><a href="${APP_URL}">Перейти к дневнику клиента</a></p><button class="primary full" data-action="logout">Выйти</button></section></div>`;
+      return;
+    }
     let h=`<div class="container">${top()}`;
     if(S.mode==="coach")h+=coachPanel();
     if(S.mode==="coach"&&!S.selected)h+='<section class="card"><h2>Выберите клиента</h2><p class="subtle">Когда клиент подключится по вашему коду, его дневник появится здесь.</p></section>';
@@ -173,6 +177,12 @@
   }
   async function enter(user){
     S.user=user;
+    S.denied=false;
+    S.mode=isCoachApp?"coach":"client";
+    if(isCoachApp){
+      const approved=await ok(db.from("nd_consultants").select("user_id").eq("user_id",user.id).maybeSingle());
+      if(!approved){S.denied=true;render();return;}
+    }
     let p=await ok(db.from("nd_profiles").select("*").eq("id",user.id).maybeSingle());
     if(!p){
       const clean=String(user.user_metadata?.display_name||user.email?.split("@")[0]||"Участник").slice(0,120);
@@ -261,6 +271,7 @@
       if(f.id==="authForm"){
         const email=v(f,"email"),password=v(f,"password");
         if(S.authMode==="register"){
+          if(isCoachApp)throw Error("Регистрация консультанта проводится отдельно после подтверждения доступа.");
           const {data,error}=await db.auth.signUp({email,password,options:{data:{display_name:v(f,"name")},emailRedirectTo:APP_URL}});
           if(error)throw error;
           if(data.session)await enter(data.user);else notify("Проверьте почту и подтвердите регистрацию");
@@ -347,9 +358,7 @@
     if(action==="openMeal"){S.mealType=b.dataset.type||"breakfast";S.openMeal=true;render();document.getElementById("newEntry")?.scrollIntoView({behavior:"smooth",block:"start"});return}
     if(action==="closeMeal"){S.openMeal=false;render();return}
     guarded(async()=>{
-      if(action==="logout"){await db.auth.signOut();S.user=null;render();return}
-      if(action==="clientMode"){S.mode="client";S.tab="diary";S.openMeal=false;await loadDay();return}
-      if(action==="coachMode"){S.mode="coach";S.tab="diary";S.openMeal=false;await loadDay();return}
+      if(action==="logout"){await db.auth.signOut();S.user=null;S.denied=false;render();return}
       if(action==="chooseClient"){S.selected=b.dataset.id;S.tab="diary";await loadDay();return}
       if(action==="prevDay"||action==="nextDay"){S.date=dateAdd(S.date,action==="prevDay"?-1:1);S.openMeal=false;await loadDay();return}
       if(action==="waterQuick"){await saveWater(num(S.day?.water_ml)+Number(b.dataset.ml));return}
