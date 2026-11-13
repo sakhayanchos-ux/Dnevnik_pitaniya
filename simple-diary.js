@@ -193,7 +193,7 @@
   }
   async function saveWater(n){
     const water=Math.max(0,Math.min(15000,n));
-    await ok(db.from("nd_days").upsert({client_id:S.user.id,log_date:S.date,water_ml:water,updated_at:new Date().toISOString()},{onConflict:"client_id,log_date"}));
+    await ok(S.day?db.from("nd_days").update({water_ml:water,updated_at:new Date().toISOString()}).eq("id",S.day.id):db.from("nd_days").insert({client_id:S.user.id,log_date:S.date,water_ml:water}));
     await loadDay();
   }
   async function photoToJpeg(file){
@@ -275,7 +275,7 @@
         if(!file)throw Error("Добавьте фото питания");
         if(file.size>24*1024*1024)throw Error("Фото слишком большое. Выберите другое.");
         const processed=await photoToJpeg(file);
-        const day=await ok(db.from("nd_days").upsert({client_id:S.user.id,log_date:S.date},{onConflict:"client_id,log_date"}).select().single());
+        const day=S.day||await ok(db.from("nd_days").insert({client_id:S.user.id,log_date:S.date}).select().single());
         const path=`${S.user.id}/${S.date}/${crypto.randomUUID()}.jpg`;
         const {error:uploadError}=await db.storage.from("nd-meal-photos").upload(path,processed,{contentType:"image/jpeg",upsert:false});
         if(uploadError)throw uploadError;
