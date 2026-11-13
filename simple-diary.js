@@ -31,7 +31,7 @@
     inbox:'<path d="M4 4h16v15H4V4Z"/><path d="M4 14h5l2 3h2l2-3h5"/>',
     refresh:'<path d="M20 7v5h-5"/><path d="M4 17v-5h5"/><path d="M5.5 9a7.2 7.2 0 0 1 12.6-2L20 12M4 12l1.9 5a7.2 7.2 0 0 0 12.6-2"/>'
   }[name]||'')+'</svg>';
-  const S={user:null,profile:null,people:{},consultants:[],clients:[],mode:isCoachApp?"coach":"client",denied:false,tab:isCoachApp?"inbox":"diary",inboxFilter:"pending",inbox:[],clientWeights:{},viewingClient:false,date:localDate(),selected:null,day:null,meals:[],mealReviews:[],dayReviews:[],weights:[],photo:{},openMeal:false,mealType:"breakfast",authMode:"login",recovery:recoveryFromUrl,busy:false};
+  const S={user:null,profile:null,people:{},consultants:[],clients:[],mode:isCoachApp?"coach":"client",denied:false,tab:isCoachApp?"inbox":"diary",inboxFilter:"pending",inbox:[],clientWeights:{},viewingClient:false,date:localDate(),selected:null,day:null,meals:[],mealReviews:[],dayReviews:[],weights:[],photo:{},openMeal:false,mealType:"breakfast",authMode:"login",recovery:recoveryFromUrl,busy:false,navSeq:0};
   const esc=x=>String(x??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   const num=x=>Number(x||0);
   const cleanName=x=>/^(?:phone[._ -]?[0-9+]+|[+0-9][0-9 .-]{7,})$/i.test(String(x||""))?"":String(x||"");
@@ -240,6 +240,37 @@
   }
 
   const developerFooter=()=>'<footer class="developer-credit"><span>Разработчик · <strong>Сахаяна Скрябина</strong></span><a href="https://wa.me/79142609616" target="_blank" rel="noopener noreferrer" aria-label="Написать разработчику в WhatsApp по номеру +7 914 260-96-16">+7 914 260-96-16</a></footer>';
+
+  // Bottom navigation always changes the screen immediately.
+  // Fresh client data is fetched afterward without holding taps behind network requests.
+  async function refreshCoachTab(tab,seq){
+    if(!isCoachApp||!S.user)return;
+    const userId=S.user.id;
+    try{
+      const clients=await ok(db.from("nd_links").select("*").eq("consultant_id",userId));
+      const ids=clients.map(l=>l.client_id);
+      const profileTask=ids.length?ok(db.from("nd_profiles").select("*").in("id",ids)):Promise.resolve([]);
+      const weightTask=tab==="results"&&ids.length?
+        ok(db.from("nd_weights").select("client_id,log_date,weight_kg").in("client_id",ids).order("log_date",{ascending:true}).limit(2000)):
+        Promise.resolve([]);
+      const [profiles,weights]=await Promise.all([profileTask,weightTask]);
+      if(seq!==S.navSeq||S.user?.id!==userId||S.tab!==tab)return;
+      S.clients=clients;
+      for(const p of profiles)S.people[p.id]=p;
+      if(!clients.some(l=>l.client_id===S.selected))S.selected=clients[0]?.client_id||null;
+      if(tab==="results"){
+        S.clientWeights={};
+        for(const w of weights)(S.clientWeights[w.client_id]??=[]).push(w);
+      }
+      if(tab==="inbox"){
+        await loadInbox();
+      }
+      if(seq===S.navSeq&&S.user?.id===userId&&S.tab===tab&&!S.viewingClient)render();
+    }catch(e){
+      // A background refresh should not block navigation or interrupt user input.
+      console.warn("Не удалось обновить раздел",e);
+    }
+  }
   function render(){
     if(!S.user||S.recovery){root.innerHTML=authView()+developerFooter();return}
     if(S.denied){
@@ -488,7 +519,19 @@
     const b=e.target.closest("[data-action]");if(!b)return;
     const action=b.dataset.action;
     if(["login","register","reset"].includes(action)){S.authMode=action;render();return}
-    if(action==="tab"){S.tab=b.dataset.tab;S.openMeal=false;if(isCoachApp){S.viewingClient=false;guarded(async()=>await loadLinks())}else render();return}
+    if(action==="tab"){
+      const tab=b.dataset.tab;
+      if(!["inbox","diary","results","profile"].includes(tab))return;
+      S.tab=tab;
+      S.openMeal=false;
+      if(isCoachApp)S.viewingClient=false;
+      const seq=++S.navSeq;
+      render(); // Immediate tab highlight and content, regardless of network state.
+      if(isCoachApp&&tab!=="profile"){
+        requestAnimationFrame(()=>{if(seq===S.navSeq)void refreshCoachTab(tab,seq)});
+      }
+      return;
+    }
     if(action==="inboxFilter"){S.inboxFilter=b.dataset.filter;render();return}
     if(action==="openMeal"){S.mealType=b.dataset.type||"breakfast";S.openMeal=true;render();document.getElementById("newEntry")?.scrollIntoView({behavior:"smooth",block:"start"});return}
     if(action==="closeMeal"){S.openMeal=false;render();return}
