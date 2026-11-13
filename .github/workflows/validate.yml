@@ -22,4 +22,7 @@ jobs:
           test -s styles.css
           grep -q 'resetPasswordForEmail' app.js
           grep -q 'newPasswordForm' app.js
-          grep -q '20261113-color' index.html
+          grep -q 'styles.css?v=' index.html
+          grep -q 'app.js?v=' index.html
+          grep -q 'waiting-card' app.js
+          grep -q 'cleanName' app.js
