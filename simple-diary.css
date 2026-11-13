@@ -553,3 +553,43 @@ body[data-app="coach"] .container{max-width:720px}
   .inbox-stats>div{padding:19px 16px}
   .inbox-entry-status .ui-icon{width:12px;height:12px}
 }
+
+/* Consultant navigation and simple client progress list */
+.coach-list-page{padding:12px 0 10px}
+.coach-list-page>h1{font-family:Georgia,"Times New Roman",serif;font-size:37px;font-weight:400;letter-spacing:-1px;margin:9px 0 10px;line-height:1.12;color:#332d33}
+.coach-list-page>.subtle{font-size:12px;line-height:1.5;color:#897d85;margin:0 0 22px;max-width:540px}
+.simple-list{background:#fffefe;border:1px solid #e8dfe2;border-radius:13px;overflow:hidden;box-shadow:0 6px 20px #43293709}
+.simple-client-row,.progress-client-row{display:flex;align-items:center;gap:15px;width:100%;text-align:left;background:transparent;color:#332d33;border:0;border-bottom:1px solid #eee7ea;padding:17px 20px;min-height:77px}
+.simple-client-row:last-child,.progress-client-row:last-child{border-bottom:0}
+.simple-client-row:hover,.progress-client-row:hover{background:#f9f7f8}
+.simple-client-row:focus-visible,.progress-client-row:focus-visible{outline-offset:-3px}
+.client-monogram{background:#ecf2f4;color:#153e57;border-radius:50%;font-family:Georgia,serif;display:grid;place-items:center;flex:none;width:39px;height:39px;font-size:22px}
+.client-copy,.progress-client-copy,.progress-client-numbers{display:flex;flex-direction:column;gap:6px;min-width:0}
+.client-copy,.progress-client-copy{flex:1}
+.client-copy strong,.progress-client-copy strong{font-size:14px;font-weight:670;line-height:1.35;overflow-wrap:anywhere}
+.client-copy small,.progress-client-copy small{font-size:11px;color:#988b95;line-height:1.4}
+.simple-client-row>.ui-icon,.progress-client-row>.ui-icon{width:17px;height:17px;color:#9aabb2;flex:none}
+.progress-client-row{gap:11px}
+.progress-client-numbers{text-align:right;align-items:flex-end;flex:none}
+.progress-client-numbers b{font-size:13px;font-weight:710;color:#153e57;white-space:nowrap}
+.progress-client-numbers small{font-size:11px;color:#8f8990;white-space:nowrap}
+.progress-client-numbers small.weight-lower{color:#327758;font-weight:720}
+.progress-client-numbers small.weight-higher{color:#aa644d;font-weight:720}
+.simple-list-empty{padding:50px 22px;text-align:center}
+.simple-list-empty h2{font-family:Georgia,serif;font-size:22px;font-weight:400;color:#3e3440;margin:0 0 12px}
+.simple-list-empty p{font-size:12px;color:#8a7b87;line-height:1.6;max-width:290px;margin:0 auto}
+.consultant-profile .card{margin:0 0 16px}
+.consultant-profile input:disabled{background:#f6f6f7;color:#817c83;opacity:1}
+.consultant-profile .primary .ui-icon{width:16px;height:16px;margin-right:6px}
+.consultant-profile .copy-code{margin:17px 0}
+.coach-back{display:inline-flex;align-items:center;gap:8px;padding:5px 0;margin:2px 0 20px;border:0;background:none;color:#153e57;font-weight:710;font-size:12px}
+.coach-back .ui-icon{transform:rotate(180deg);width:15px;height:15px}
+.coach-nav button{font-size:10px!important;letter-spacing:0;white-space:nowrap}
+@media(max-width:420px){
+ .coach-list-page>h1{font-size:34px}
+ .simple-client-row,.progress-client-row{padding:15px 13px;gap:10px}
+ .progress-client-numbers b{font-size:12px}
+ .progress-client-copy strong,.client-copy strong{font-size:13px}
+ .progress-client-copy small{font-size:10px}
+ .coach-nav button{font-size:9px!important}
+}
