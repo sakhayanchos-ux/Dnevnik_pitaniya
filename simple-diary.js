@@ -845,7 +845,7 @@
         const clientId=b.dataset.id;
         if(!S.clients.some(link=>link.client_id===clientId))throw Error("Клиент больше не прикреплён к вам.");
         const clientName=who(clientId);
-        if(!confirm("Удалить "+clientName+" из списка ваших клиентов?\\n\\nКлиент будет откреплён от вас. Его аккаунт, фотографии и дневники сохранятся. Клиент сможет подключиться к вам или другому консультанту снова."))return;
+        if(!confirm("Удалить "+clientName+" из списка ваших клиентов?\n\nКлиент будет откреплён от вас. Его аккаунт, фотографии и дневники сохранятся. Клиент сможет подключиться к вам или другому консультанту снова."))return;
         const removed=await ok(db.from("nd_links").delete().eq("consultant_id",S.user.id).eq("client_id",clientId).select("client_id"));
         if(!removed?.length)throw Error("Связь с клиентом уже отсутствует. Обновите список.");
         S.viewingClient=false;S.receivedDiary=false;S.receivedDiaryLoading=false;S.selected=null;
