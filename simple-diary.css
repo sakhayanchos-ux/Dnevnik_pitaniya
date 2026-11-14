@@ -686,3 +686,39 @@ body[data-app="coach"] .container{max-width:720px}
 .coach-invite-code{font-variant-numeric:tabular-nums;letter-spacing:2.5px;font-size:clamp(20px,5.2vw,29px);font-weight:760;color:#153e57;text-align:center;padding:19px 12px;background:#f2f7f9;border:1px solid #dce7eb;border-radius:9px;user-select:all;overflow-wrap:anywhere}
 .auth-success-note{background:#f0f5f3;color:#2c6854!important;border:1px solid #cde0d6;border-radius:8px;padding:13px 14px;font-size:12px!important;line-height:1.55;margin:14px 0!important}
 .auth-screen .secondary.full{margin-top:14px;width:100%;border-radius:7px;font-size:13px;min-height:44px}
+
+
+/* Password visibility toggle: always accessible and not a form submit */
+.password-field>.password-label{
+  display:block;
+  font-size:12px;
+  font-weight:740;
+  color:#655462;
+  margin-bottom:7px;
+}
+.password-control{position:relative;display:flex;align-items:center;min-width:0}
+.password-control>input{width:100%;padding-right:116px!important}
+.password-visibility{
+  position:absolute;right:4px;top:50%;transform:translateY(-50%);
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  min-width:94px;min-height:39px;padding:5px 8px;
+  color:#21475d;background:transparent;border:0;border-radius:8px;
+  font-size:12px;font-weight:700;
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
+}
+.password-visibility:hover,.password-visibility:focus-visible{background:#edf3f6}
+.password-visibility .ui-icon{width:18px;height:18px;flex:none}
+@media(max-width:350px){.password-visibility{min-width:79px;font-size:11px;gap:4px}.password-control>input{padding-right:96px!important}}
+
+/* Only remove a link to a client, never delete that person's personal data */
+.remove-linked-client{
+  display:inline-flex;align-items:center;gap:8px;
+  border:1px solid #e6d9de;background:#fff9fa;
+  border-radius:9px;color:#8a5868;
+  padding:12px 15px;min-height:44px;
+  font-size:12px;font-weight:680;margin:8px 0 14px;
+  touch-action:manipulation;
+}
+.remove-linked-client .ui-icon{width:16px;height:16px;flex:none}
+.remove-linked-client:hover,.remove-linked-client:focus-visible{background:#f9edf0;border-color:#d5b6c1}
