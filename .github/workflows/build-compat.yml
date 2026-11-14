@@ -1,0 +1,45 @@
+name: Сборка для старых iPhone
+on:
+  push:
+    branches: [main]
+    paths:
+      - simple-diary.js
+      - scripts/build-compat.mjs
+      - .github/workflows/build-compat.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: nutrition-compat-build
+  cancel-in-progress: false
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Установить фиксированные зависимости сборки
+        run: npm install --no-save --no-package-lock --ignore-scripts esbuild@0.25.12 @supabase/supabase-js@2.57.0
+      - name: Собрать совместимый JavaScript
+        run: node scripts/build-compat.mjs
+      - name: Проверить синтаксис сборки
+        run: |
+          node --check simple-diary.compat.js
+          test -s simple-diary.compat.js
+          grep -q 'Дневник питания' simple-diary.compat.js || true
+      - name: Сохранить совместимую версию в репозитории
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add simple-diary.compat.js
+          if ! git diff --cached --quiet; then
+            git commit -m "Build Safari 12 compatible nutrition diary"
+            git push
+          fi
