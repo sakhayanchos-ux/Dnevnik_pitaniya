@@ -316,7 +316,11 @@
     let h=`<div class="intro"><h1>${coach?"Профиль клиента":"Мой профиль"}</h1><p>Данные для автоматического расчёта воды и белка</p></div><section class="card"><form id="${coach?"coachProfileForm":"profileForm"}">`;
     if(!coach)h+=formField("name","Имя и фамилия","text",cleanName(p?.display_name)||"","required maxlength=120");
     h+=`${formField("weight","Текущий вес, кг","number",p?.weight_kg??"","min=20 max=500 step=.1")}<label class="field"><span>Моя цель</span><select name="goal"><option value="">Выбрать</option>${[["loss","Снижение веса"],["maintain","Поддержание веса"],["gain","Набор мышечной массы"]].map(([key,label])=>`<option value="${key}" ${p?.goal===key?"selected":""}>${label}</option>`).join("")}</select></label>${formField("target","Желаемый вес, кг (при снижении или наборе)","number",p?.target_weight_kg??"","min=20 max=500 step=.1")}<button class="primary full">Сохранить профиль</button></form></section>`;
-    if(!coach)h+=`<section class="card"><h2>Мой консультант</h2><p class="subtle">Введите код консультанта, чтобы он мог проверять дневник.</p><form id="linkForm">${formField("code","Код консультанта","text","","required placeholder='Вставьте код'")}<button class="primary full">Подключить</button></form>${S.consultants.map(l=>`<div class="connected"><b>${esc(who(l.consultant_id))}</b><button data-action="unlink" data-id="${esc(l.consultant_id)}">Отключить</button></div>`).join("")}</section>`;
+    if(!coach)h+=`<section class="card"><h2>Мой консультант</h2>${S.consultants.length?
+        '<p class="subtle">Вы прикреплены к консультанту. Только он видит ваши отправленные дневники.</p>':
+        '<p class="subtle">Введите личный код своего консультанта (10 символов), чтобы он мог проверять дневник.</p>'}
+        ${S.consultants.length?"":`<form id="linkForm">${formField("code","Код консультанта","text","","required placeholder='Например, A1B2C3D4E5' autocapitalize=characters maxlength=40")}<button class="primary full">Подключить</button></form>`}
+        ${S.consultants.map(l=>`<div class="connected"><b>${esc(who(l.consultant_id))}</b><button data-action="unlink" data-id="${esc(l.consultant_id)}">Отключить</button></div>`).join("")}</section>`;
     if(!coach)h+=pushPanel();
     return h;
   }
@@ -661,10 +665,24 @@
       if(f.id==="profileForm"||f.id==="coachProfileForm"){await saveProfile(f);return}
       if(f.id==="weightForm"){await saveWeight(f);return}
       if(f.id==="linkForm"){
-        const consultant_id=v(f,"code");
-        if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(consultant_id))throw Error("Проверьте код консультанта");
+        if(isCoachApp)throw Error("Консультант не может присоединить себя как клиента");
+        if(S.consultants.length)throw Error("Сначала отключите предыдущего консультанта");
+        const code=v(f,"code").toUpperCase().replace(/\s+/g,"");
+        const isOldUuid=/^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/.test(code);
+        if(!isOldUuid&&!/^[A-F0-9]{10}$/.test(code))throw Error("Код консультанта должен содержать 10 символов");
+        const consultant=isOldUuid?
+          await ok(db.from("nd_consultants").select("user_id").eq("user_id",code.toLowerCase()).maybeSingle()):
+          await ok(db.from("nd_consultants").select("user_id").eq("invite_code",code).maybeSingle());
+        if(!consultant)throw Error("Консультант с таким кодом не найден");
+        const consultant_id=consultant.user_id;
         if(consultant_id===S.user.id)throw Error("Нельзя подключить себя");
-        await ok(db.from("nd_links").insert({client_id:S.user.id,consultant_id}));
+        try{
+          await ok(db.from("nd_links").insert({client_id:S.user.id,consultant_id}));
+        }catch(err){
+          if(/duplicate|unique|nd_links_single_consultant/i.test(err?.message||""))
+            throw Error("У вас уже есть консультант. Сначала отключите его в профиле.");
+          throw err;
+        }
         notify("Консультант подключён");await loadLinks();return;
       }
       if(f.id==="waterForm"){const water=Number(v(f,"water"));if(!Number.isInteger(water)||water<0||water>15000)throw Error("Проверьте количество воды");await saveWater(water);notify("Вода сохранена");return}
