@@ -22,7 +22,11 @@ jobs:
           test -s simple-diary.css
           test -s simple-diary.js
           grep -q 'simple-diary.css' index.html
-          grep -q 'simple-diary.js' index.html
+          grep -q 'simple-diary.compat.js' index.html
+          grep -q 'simple-diary.compat.js' consultant/index.html
+          grep -q 'lang="ru"' index.html
+          test -s simple-diary.compat.js
+          node --check simple-diary.compat.js
           grep -q 'resetPasswordForEmail' simple-diary.js
           grep -q 'newPasswordForm' simple-diary.js
           grep -q 'snack1' simple-diary.js
