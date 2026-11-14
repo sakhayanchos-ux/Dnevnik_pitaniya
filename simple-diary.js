@@ -27,6 +27,7 @@
     book:'<rect x="4" y="3.8" width="16" height="16.4" rx="1.8"/><path d="M8.5 3.8v16.4M11.5 8h5M11.5 12h5M11.5 16h3"/>',
     chart:'<path d="M4 19.5h16M6.5 16V10M12 16V5M17.5 16V8"/><path d="M5 18h14"/>',
     user:'<circle cx="12" cy="8.3" r="3.3"/><path d="M5.3 20c.2-3.8 2.7-5.7 6.7-5.7s6.5 1.9 6.7 5.7"/>',
+    userMinus:'<circle cx="9" cy="8.1" r="3"/><path d="M2.7 19.3c.2-3.8 2.5-5.6 6.3-5.6 2.1 0 3.8.6 4.8 2"/><path d="M15 12h7"/>',
     drop:'<path d="M12 2.5C9.2 7 6.1 10 6.1 13.7a5.9 5.9 0 0 0 11.8 0C17.9 10 14.8 7 12 2.5Z"/>',
     leaf:'<path d="M20.2 3.8c-8.2-.1-14.5 3.5-14.5 10.1a6.1 6.1 0 0 0 6.1 6.1c6.7 0 9.1-7.1 8.4-16.2Z"/><path d="M4.3 20c3.5-6.3 7.5-8.8 12-11.4"/>',
     camera:'<path d="M3 8.2h4l1.8-2.5h6.4L17 8.2h4v11.2H3Z"/><circle cx="12" cy="13.9" r="3.25"/>',
@@ -35,6 +36,8 @@
     send:'<path d="m21 3-8.5 18-2.8-7.7L2 10.5 21 3Z"/><path d="m9.7 13.3 4.8-4.8"/>',
     check:'<circle cx="12" cy="12" r="9"/><path d="m8 12 2.5 2.5L16 9"/>',
     copy:'<rect x="8" y="8" width="12" height="13" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h2"/>',
+    eye:'<path d="M2.3 12s3.5-6.2 9.7-6.2 9.7 6.2 9.7 6.2-3.5 6.2-9.7 6.2S2.3 12 2.3 12Z"/><circle cx="12" cy="12" r="2.7"/>',
+    eyeOff:'<path d="M3 3l18 18"/><path d="M10.6 5.9c.5-.1 1-.1 1.4-.1 6.2 0 9.7 6.2 9.7 6.2a16.9 16.9 0 0 1-3 3.6M6.2 7.6A17.2 17.2 0 0 0 2.3 12s3.5 6.2 9.7 6.2c1.1 0 2.1-.2 3-.5"/><path d="M10.5 10.5a2.7 2.7 0 0 0 3 3"/>',
     inbox:'<path d="M4 4h16v15H4V4Z"/><path d="M4 14h5l2 3h2l2-3h5"/>',
     refresh:'<path d="M20 7v5h-5"/><path d="M4 17v-5h5"/><path d="M5.5 9a7.2 7.2 0 0 1 12.6-2L20 12M4 12l1.9 5a7.2 7.2 0 0 0 12.6-2"/>'
   }[name]||'')+'</svg>';
@@ -64,6 +67,10 @@
     return latest&&Date.parse(latest.updated_at)>=modified?"done":"waiting";
   };
   function formField(name,title,type="text",value="",attrs=""){
+    if(type==="password"){
+      const inputId="auth-password-"+name;
+      return `<div class="field password-field"><label class="password-label" for="${inputId}">${esc(title)}</label><div class="password-control"><input id="${inputId}" name="${name}" type="password" value="${esc(value)}" ${attrs}><button class="password-visibility" type="button" data-action="togglePassword" aria-controls="${inputId}" aria-label="Показать пароль" aria-pressed="false">${icon("eye")}<span>Показать</span></button></div></div>`;
+    }
     return `<label class="field"><span>${title}</span><input name="${name}" type="${type}" value="${esc(value)}" ${attrs}></label>`;
   }
   function authView(){
@@ -201,7 +208,9 @@
      `<p class="subtle">${requested?"Запрос отправлен в приложение клиента.":"Клиент ещё не отправил дневник."}</p>
        <button class="primary full" data-action="requestDiary" data-id="${esc(id)}" ${requested?"disabled":""}>${icon("send")} ${requested?"Запрос отправлен":"Попросить отправить дневник"}</button>`}
     <p class="auto-note">Заполненный дневник отправится сам в 22:00, если клиент не отправит раньше.</p>
-   </div></div></section>`;
+   </div></div>
+   <button class="remove-linked-client" data-action="removeClient" data-id="${esc(id)}" type="button">${icon("userMinus")} Удалить из моих клиентов</button>
+   </section>`;
   return h;
 }
   function diaryView(){
@@ -725,6 +734,16 @@
   document.addEventListener("click",e=>{
     const b=e.target.closest("[data-action]");if(!b)return;
     const action=b.dataset.action;
+    if(action==="togglePassword"){
+      const input=document.getElementById(b.getAttribute("aria-controls"));
+      if(!(input instanceof HTMLInputElement))return;
+      const show=input.type==="password";
+      input.type=show?"text":"password";
+      b.setAttribute("aria-pressed",String(show));
+      b.setAttribute("aria-label",show?"Скрыть пароль":"Показать пароль");
+      b.innerHTML=icon(show?"eyeOff":"eye")+`<span>${show?"Скрыть":"Показать"}</span>`;
+      return;
+    }
     if(["login","register","reset"].includes(action)){S.authMode=action;render();return}
     if(action==="activateCoach"){
       guarded(async()=>await enrollConsultant(S.user));
@@ -821,6 +840,23 @@
       if(action==="prevDay"||action==="nextDay"){S.date=dateAdd(S.date,action==="prevDay"?-1:1);S.openMeal=false;await loadDay();return}
       if(action==="waterQuick"){await saveWater(num(S.day?.water_ml)+Number(b.dataset.ml));return}
       if(action==="copyCode"){try{await navigator.clipboard.writeText(S.consultantCode||S.user.id);notify("Код скопирован")}catch{notify("Скопируйте код вручную")}return}
+      if(action==="removeClient"){
+        if(!isCoachApp||!S.user)throw Error("Только консультант может удалить клиента из своего списка.");
+        const clientId=b.dataset.id;
+        if(!S.clients.some(link=>link.client_id===clientId))throw Error("Клиент больше не прикреплён к вам.");
+        const clientName=who(clientId);
+        if(!confirm("Удалить "+clientName+" из списка ваших клиентов?\\n\\nКлиент будет откреплён от вас. Его аккаунт, фотографии и дневники сохранятся. Клиент сможет подключиться к вам или другому консультанту снова."))return;
+        const removed=await ok(db.from("nd_links").delete().eq("consultant_id",S.user.id).eq("client_id",clientId).select("client_id"));
+        if(!removed?.length)throw Error("Связь с клиентом уже отсутствует. Обновите список.");
+        S.viewingClient=false;S.receivedDiary=false;S.receivedDiaryLoading=false;S.selected=null;
+        S.tab="diary";
+        delete S.people[clientId];delete S.clientWeights[clientId];
+        S.inbox=S.inbox.filter(item=>item.client_id!==clientId);
+        S.clientRequests=S.clientRequests.filter(item=>item.client_id!==clientId);
+        await loadLinks();
+        notify("Клиент откреплён. Данные клиента сохранены.");
+        return;
+      }
       if(action==="unlink"){
         if(!confirm("Отключить консультанта?"))return;
         await ok(db.from("nd_links").delete().eq("client_id",S.user.id).eq("consultant_id",b.dataset.id));
