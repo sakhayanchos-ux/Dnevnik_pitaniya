@@ -11,6 +11,7 @@
   const {createClient}=await import("https://esm.sh/@supabase/supabase-js@2.57.0");
   const db=createClient("https://xprobrrrpybmzbucakws.supabase.co","sb_publishable_UETDRxFcw79NwwBmvjI4sw_7F5y5B28");
   const APP_URL="https://sakhayanchos-ux.github.io/Dnevnik_pitaniya/";
+  const COACH_URL=APP_URL+"consultant/";
   const isCoachApp=/\/consultant(?:\/|\/index\.html)?$/.test(location.pathname);
   const assetRoot=isCoachApp?"../":"./";
   const PUSH_PUBLIC="BIvUd8m3MabngQ6DcST3cq3HuJeeIWnw0r-nQEB0JnYytcU7yHDhBWez9iYn1KW2O_qlHuVueNXRF9y8OAUbBYc";
@@ -37,7 +38,7 @@
     inbox:'<path d="M4 4h16v15H4V4Z"/><path d="M4 14h5l2 3h2l2-3h5"/>',
     refresh:'<path d="M20 7v5h-5"/><path d="M4 17v-5h5"/><path d="M5.5 9a7.2 7.2 0 0 1 12.6-2L20 12M4 12l1.9 5a7.2 7.2 0 0 0 12.6-2"/>'
   }[name]||'')+'</svg>';
-  const S={user:null,profile:null,people:{},consultants:[],clients:[],mode:isCoachApp?"coach":"client",denied:false,pushEnabled:false,tab:isCoachApp?"inbox":"diary",inboxFilter:"pending",inbox:[],submission:null,clientRequest:null,clientRequests:[],clientWeights:{},viewingClient:false,receivedDiary:false,receivedDiaryLoading:false,date:initialDate||localDate(),selected:null,day:null,meals:[],mealReviews:[],dayReviews:[],weights:[],photo:{},openMeal:false,mealType:"breakfast",authMode:"login",recovery:recoveryFromUrl,busy:false,navSeq:0};
+  const S={user:null,profile:null,people:{},consultants:[],clients:[],mode:isCoachApp?"coach":"client",denied:false,deniedReason:"",consultantCode:null,pushEnabled:false,tab:isCoachApp?"inbox":"diary",inboxFilter:"pending",inbox:[],submission:null,clientRequest:null,clientRequests:[],clientWeights:{},viewingClient:false,receivedDiary:false,receivedDiaryLoading:false,date:initialDate||localDate(),selected:null,day:null,meals:[],mealReviews:[],dayReviews:[],weights:[],photo:{},openMeal:false,mealType:"breakfast",authMode:"login",recovery:recoveryFromUrl,busy:false,navSeq:0};
   const esc=x=>String(x??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   const num=x=>Number(x||0);
   const cleanName=x=>/^(?:phone[._ -]?[0-9+]+|[+0-9][0-9 .-]{7,})$/i.test(String(x||""))?"":String(x||"");
@@ -67,8 +68,8 @@
   }
   function authView(){
     if(S.recovery)return `<div class="auth-screen"><div class="auth-card"><div class="logo"><img src="${assetRoot}diary-icon.webp?v=1" alt="Дневник питания" class="app-logo" width="44" height="44"></div><h1>Новый пароль</h1><p>Придумайте пароль для входа в дневник.</p><form id="newPasswordForm">${formField("newPassword","Новый пароль","password","","required minlength=8 autocomplete=new-password")}${formField("againPassword","Повторите пароль","password","","required minlength=8 autocomplete=new-password")}<button class="primary full">Сохранить пароль</button></form></div></div>`;
-    const isRegister=!isCoachApp&&S.authMode==="register",isReset=S.authMode==="reset";
-    return `<div class="auth-screen"><div class="auth-card"><div class="logo"><img src="${assetRoot}diary-icon.webp?v=1" alt="Дневник питания" class="app-logo" width="44" height="44"></div><h1>${isCoachApp?"Кабинет консультанта":"Дневник питания"}</h1><p>${isCoachApp?"Просматривайте дневники клиентов и оставляйте рекомендации.":"Открой, заполни и получи рекомендации консультанта."}</p><h2>${isReset?"Восстановление пароля":isRegister?"Регистрация":"Вход"}</h2><form id="${isReset?"resetForm":"authForm"}">${isRegister?formField("name","Имя и фамилия","text","","required maxlength=120"):""}${formField("email","Электронная почта","email","","required autocomplete=email")}${isReset?"":formField("password","Пароль","password","","required minlength=6 autocomplete=current-password")}<button class="primary full">${isReset?"Отправить ссылку":isRegister?"Зарегистрироваться":"Войти"}</button></form>${isReset?`<details class="recovery-fallback"><summary>Ссылка ведёт на localhost? Войти по ссылке вручную</summary><p>Откройте новое письмо, зажмите кнопку восстановления и выберите «Скопировать ссылку». Не открывайте ссылку. Вставьте её сюда — это безопасный способ завершить восстановление на нашем сайте.</p><form id="linkRecoveryForm"><label class="field"><span>Ссылка из письма</span><textarea name="recoveryLink" rows="3" placeholder="Вставьте ссылку из письма" required autocomplete="off" autocapitalize="off" spellcheck="false"></textarea></label><button class="primary full">Продолжить восстановление</button></form><p class="secret-hint">Не отправляйте эту ссылку другим людям.</p></details>`:""}<div class="auth-links">${isReset?'<button data-action="login">← Назад ко входу</button>':`<button data-action="${isRegister?"login":"register"}">${isRegister?"Уже есть аккаунт? Войти":"Создать аккаунт"}</button>${isRegister?"":'<button data-action="reset">Забыли пароль?</button>'}`}</div></div></div>`;
+    const isRegister=S.authMode==="register",isReset=S.authMode==="reset";
+    return `<div class="auth-screen"><div class="auth-card"><div class="logo"><img src="${assetRoot}diary-icon.webp?v=1" alt="Дневник питания" class="app-logo" width="44" height="44"></div><h1>${isCoachApp?"Кабинет консультанта":"Дневник питания"}</h1><p>${isCoachApp?"Просматривайте дневники клиентов и оставляйте рекомендации.":"Открой, заполни и получи рекомендации консультанта."}</p><h2>${isReset?"Восстановление пароля":isRegister?isCoachApp?"Регистрация консультанта":"Регистрация":"Вход"}</h2><form id="${isReset?"resetForm":"authForm"}">${isRegister?formField("name","Имя и фамилия","text","","required maxlength=120"):""}${formField("email","Электронная почта","email","","required autocomplete=email")}${isReset?"":formField("password","Пароль","password","","required minlength=6 autocomplete=current-password")}<button class="primary full">${isReset?"Отправить ссылку":isRegister?isCoachApp?"Создать кабинет консультанта":"Зарегистрироваться":"Войти"}</button></form>${isReset?`<details class="recovery-fallback"><summary>Ссылка ведёт на localhost? Войти по ссылке вручную</summary><p>Откройте новое письмо, зажмите кнопку восстановления и выберите «Скопировать ссылку». Не открывайте ссылку. Вставьте её сюда — это безопасный способ завершить восстановление на нашем сайте.</p><form id="linkRecoveryForm"><label class="field"><span>Ссылка из письма</span><textarea name="recoveryLink" rows="3" placeholder="Вставьте ссылку из письма" required autocomplete="off" autocapitalize="off" spellcheck="false"></textarea></label><button class="primary full">Продолжить восстановление</button></form><p class="secret-hint">Не отправляйте эту ссылку другим людям.</p></details>`:""}<div class="auth-links">${isReset?'<button data-action="login">← Назад ко входу</button>':`<button data-action="${isRegister?"login":"register"}">${isRegister?"Уже есть аккаунт? Войти":isCoachApp?"Зарегистрироваться":"Создать аккаунт"}</button>${isRegister?"":'<button data-action="reset">Забыли пароль?</button>'}`}</div></div></div>`;
   }
   function top(){
     return `<header class="top"><div class="brand"><span class="logo-mini"><img src="${assetRoot}diary-icon.webp?v=1" alt="Дневник питания" class="app-logo" width="44" height="44"></span><div><strong>${isCoachApp?"Кабинет консультанта":"Дневник питания"}</strong><small>${isCoachApp?"ПРОВЕРКА ПИТАНИЯ":"ЛИЧНЫЙ ЖУРНАЛ"}</small></div></div><button class="quiet" data-action="logout">Выйти</button></header>`;
@@ -144,7 +145,7 @@
 
   function coachProfileView(){
   const p=S.profile||{};
-  return `<section class="coach-list-page consultant-profile"><div class="eyebrow">КОНСУЛЬТАНТ</div><h1>Мой профиль</h1><p class="subtle">Это имя увидят твои подключённые клиенты.</p><div class="card"><h2>Мои данные</h2><form id="consultantOwnProfileForm">${formField("name","Имя и фамилия","text",cleanName(p.display_name)||"","required maxlength=120")}<label class="field"><span>Электронная почта</span><input type="email" value="${esc(S.user.email||"")}" disabled></label><button class="primary full">Сохранить имя</button></form></div><div class="card"><h2>Код для подключения</h2><p class="subtle">Отправь этот код клиенту. Он введёт его в своём профиле.</p><div class="copy-code">${esc(S.user.id)}</div><button class="primary full" data-action="copyCode">${icon("copy")} Скопировать код</button></div>${pushPanel()}</section>`;
+  return `<section class="coach-list-page consultant-profile"><div class="eyebrow">КОНСУЛЬТАНТ</div><h1>Мой профиль</h1><p class="subtle">Это имя увидят твои подключённые клиенты.</p><div class="card"><h2>Мои данные</h2><form id="consultantOwnProfileForm">${formField("name","Имя и фамилия","text",cleanName(p.display_name)||"","required maxlength=120")}<label class="field"><span>Электронная почта</span><input type="email" value="${esc(S.user.email||"")}" disabled></label><button class="primary full">Сохранить имя</button></form></div><div class="card"><h2>Код для подключения</h2><p class="subtle">Отправь этот код клиенту. Он введёт его в своём профиле.</p><div class="copy-code coach-invite-code">${esc(S.consultantCode||"Код создаётся…")}</div><button class="primary full" data-action="copyCode">${icon("copy")} Скопировать код</button></div>${pushPanel()}</section>`;
 }
 
   function coachDetailBack(){
@@ -379,7 +380,10 @@
   function render(){
     if(!S.user||S.recovery){root.innerHTML=authView()+developerFooter();return}
     if(S.denied){
-      root.innerHTML=`<div class="auth-screen"><section class="auth-card"><h1>Вход консультанта</h1><p>Сейчас выполнен вход под адресом:</p><p class="signed-in-email">${esc(S.user?.email||"Электронная почта не определена")}</p><p>Этот аккаунт пока не имеет доступа консультанта. Выйдите и войдите под почтой, для которой подтверждён статус консультанта.</p><button class="primary full" data-action="logout">Выйти и сменить аккаунт</button><p class="client-link"><a href="${APP_URL}">Открыть дневник клиента</a></p></section></div>`+developerFooter();
+      root.innerHTML=`<div class="auth-screen"><section class="auth-card"><h1>${S.deniedReason==="client"?"Этот аккаунт уже используется клиентом":"Создать кабинет консультанта"}</h1><p>Вы вошли под почтой:</p><p class="signed-in-email">${esc(S.user?.email||"Электронная почта не определена")}</p>${S.deniedReason==="client"?
+        '<p>Этот аккаунт уже прикреплён к консультанту как клиент. Для кабинета консультанта зарегистрируйте другую электронную почту.</p>':
+        '<p>У вас ещё нет кабинета консультанта. Создайте его, чтобы получить собственный код и подключать только своих клиентов.</p><button class="primary full" data-action="activateCoach">Создать кабинет консультанта</button>'}
+        <button class="secondary full" data-action="logout">Выйти и сменить аккаунт</button><p class="client-link"><a href="${APP_URL}">Открыть дневник клиента</a></p></section></div>`+developerFooter();
       return;
     }
     let h=`<div class="container">${top()}`;
@@ -397,13 +401,38 @@
     }else h+=S.tab==="profile"?profileView():S.tab==="results"?resultsView():diaryView();
     root.innerHTML=h+developerFooter()+bottom()+"</div>";
   }
+  async function enrollConsultant(user,providedName=""){
+    if(!isCoachApp||!user)throw Error("Откройте кабинет консультанта для регистрации");
+    const oldProfile=await ok(db.from("nd_profiles").select("id,display_name").eq("id",user.id).maybeSingle());
+    const clean=String(providedName||user.user_metadata?.display_name||user.email?.split("@")[0]||"Консультант").trim().slice(0,120);
+    if(!oldProfile)await ok(db.from("nd_profiles").insert({id:user.id,display_name:clean}));
+    else if(providedName&&oldProfile.display_name!==clean)
+      await ok(db.from("nd_profiles").update({display_name:clean}).eq("id",user.id));
+    const own=await ok(db.from("nd_consultants").select("user_id,invite_code").eq("user_id",user.id).maybeSingle());
+    if(!own){
+      try{
+        await ok(db.from("nd_consultants").insert({user_id:user.id}));
+      }catch(err){
+        if(/row-level security|duplicate|permission|conflict/i.test(err?.message||""))
+          throw Error("Не удалось создать кабинет. Если вы уже подключены как клиент, зарегистрируйте консультанта с другой почтой.");
+        throw err;
+      }
+    }
+    await enter(user);
+  }
+
   async function enter(user){
     S.user=user;
     S.denied=false;
     S.mode=isCoachApp?"coach":"client";
     if(isCoachApp){
-      const approved=await ok(db.from("nd_consultants").select("user_id").eq("user_id",user.id).maybeSingle());
-      if(!approved){S.denied=true;render();return;}
+      const approved=await ok(db.from("nd_consultants").select("user_id,invite_code").eq("user_id",user.id).maybeSingle());
+      if(!approved){
+        const links=await ok(db.from("nd_links").select("consultant_id").eq("client_id",user.id).limit(1));
+        S.denied=true;S.deniedReason=links.length?"client":"unregistered";
+        render();return;
+      }
+      S.consultantCode=approved.invite_code;
     }
     let p=await ok(db.from("nd_profiles").select("*").eq("id",user.id).maybeSingle());
     if(!p){
@@ -569,15 +598,27 @@
       if(f.id==="authForm"){
         const email=v(f,"email"),password=v(f,"password");
         if(S.authMode==="register"){
-          if(isCoachApp)throw Error("Регистрация консультанта проводится отдельно после подтверждения доступа.");
-          const {data,error}=await db.auth.signUp({email,password,options:{data:{display_name:v(f,"name")},emailRedirectTo:APP_URL}});
+          const displayName=v(f,"name");
+          if(!displayName||displayName.length>120)throw Error("Укажите имя и фамилию");
+          const redirect=isCoachApp?COACH_URL:APP_URL;
+          const {data,error}=await db.auth.signUp({email,password,options:{data:{display_name:displayName},emailRedirectTo:redirect}});
           if(error)throw error;
-          if(data.session)await enter(data.user);else notify("Проверьте почту и подтвердите регистрацию");
-        }else{const {data,error}=await db.auth.signInWithPassword({email,password});if(error)throw error;await enter(data.user)}
+          if(data.session&&data.user){
+            if(isCoachApp)await enrollConsultant(data.user,displayName);
+            else await enter(data.user);
+          }else{
+            S.authMode="login";render();
+            notify("Проверьте почту, подтвердите регистрацию и затем войдите в кабинет консультанта.");
+          }
+        }else{
+          const {data,error}=await db.auth.signInWithPassword({email,password});
+          if(error)throw error;
+          await enter(data.user);
+        }
         return;
       }
       if(f.id==="resetForm"){
-        await ok(db.auth.resetPasswordForEmail(v(f,"email"),{redirectTo:APP_URL}));
+        await ok(db.auth.resetPasswordForEmail(v(f,"email"),{redirectTo:isCoachApp?COACH_URL:APP_URL}));
         S.authMode="reset";render();notify("Письмо отправлено. Если ссылка ведёт на localhost, используйте способ ниже.");return;
       }
       if(f.id==="linkRecoveryForm"){
@@ -659,6 +700,10 @@
     const b=e.target.closest("[data-action]");if(!b)return;
     const action=b.dataset.action;
     if(["login","register","reset"].includes(action)){S.authMode=action;render();return}
+    if(action==="activateCoach"){
+      guarded(async()=>await enrollConsultant(S.user));
+      return;
+    }
     if(action==="tab"){
       const tab=b.dataset.tab;
       if(!["inbox","diary","results","profile"].includes(tab))return;
@@ -686,7 +731,7 @@
     if(action==="openMeal"){S.mealType=b.dataset.type||"breakfast";S.openMeal=true;render();document.getElementById("newEntry")?.scrollIntoView({behavior:"smooth",block:"start"});return}
     if(action==="closeMeal"){S.openMeal=false;render();return}
     guarded(async()=>{
-      if(action==="logout"){if(S.user&&S.pushEnabled)await unsubscribePush();await db.auth.signOut();S.user=null;S.denied=false;S.pushEnabled=false;render();return}
+      if(action==="logout"){if(S.user&&S.pushEnabled)await unsubscribePush();await db.auth.signOut();S.user=null;S.denied=false;S.deniedReason="";S.consultantCode=null;S.pushEnabled=false;render();return}
       if(action==="refreshClients"){await loadLinks();notify("Имена клиентов обновлены");return}
       if(action==="chooseClient"){
         S.selected=b.dataset.id;S.tab="diary";S.viewingClient=true;S.receivedDiary=false;
@@ -749,7 +794,7 @@
       if(action==="refreshInbox"){await loadInbox();render();notify("Входящие обновлены");return}
       if(action==="prevDay"||action==="nextDay"){S.date=dateAdd(S.date,action==="prevDay"?-1:1);S.openMeal=false;await loadDay();return}
       if(action==="waterQuick"){await saveWater(num(S.day?.water_ml)+Number(b.dataset.ml));return}
-      if(action==="copyCode"){try{await navigator.clipboard.writeText(S.user.id);notify("Код скопирован")}catch{notify("Скопируйте код вручную")}return}
+      if(action==="copyCode"){try{await navigator.clipboard.writeText(S.consultantCode||S.user.id);notify("Код скопирован")}catch{notify("Скопируйте код вручную")}return}
       if(action==="unlink"){
         if(!confirm("Отключить консультанта?"))return;
         await ok(db.from("nd_links").delete().eq("client_id",S.user.id).eq("consultant_id",b.dataset.id));
