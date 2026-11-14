@@ -681,3 +681,8 @@ body[data-app="coach"] .container{max-width:720px}
 /* Inbox entry: show responsive loading state while the submitted diary opens */
 .received-diary-loading{padding:24px 22px;min-height:110px;display:flex;align-items:center;color:#857c85}
 .received-diary-loading p{font-size:13px;margin:0}
+
+/* Registration and personal consultant invitation code */
+.coach-invite-code{font-variant-numeric:tabular-nums;letter-spacing:2.5px;font-size:clamp(20px,5.2vw,29px);font-weight:760;color:#153e57;text-align:center;padding:19px 12px;background:#f2f7f9;border:1px solid #dce7eb;border-radius:9px;user-select:all;overflow-wrap:anywhere}
+.auth-success-note{background:#f0f5f3;color:#2c6854!important;border:1px solid #cde0d6;border-radius:8px;padding:13px 14px;font-size:12px!important;line-height:1.55;margin:14px 0!important}
+.auth-screen .secondary.full{margin-top:14px;width:100%;border-radius:7px;font-size:13px;min-height:44px}
