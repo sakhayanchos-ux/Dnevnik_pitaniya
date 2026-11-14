@@ -427,6 +427,12 @@
 
   async function enter(user){
     S.user=user;
+    if(!isCoachApp&&user.user_metadata?.signup_app==="consultant"){
+      // Email confirmations may fall back to the default Site URL;
+      // consultant registrations must return to the consultant app.
+      location.replace(COACH_URL);
+      return;
+    }
     S.denied=false;
     S.mode=isCoachApp?"coach":"client";
     if(isCoachApp){
@@ -605,7 +611,7 @@
           const displayName=v(f,"name");
           if(!displayName||displayName.length>120)throw Error("Укажите имя и фамилию");
           const redirect=isCoachApp?COACH_URL:APP_URL;
-          const {data,error}=await db.auth.signUp({email,password,options:{data:{display_name:displayName},emailRedirectTo:redirect}});
+          const {data,error}=await db.auth.signUp({email,password,options:{data:{display_name:displayName,signup_app:isCoachApp?"consultant":"client"},emailRedirectTo:redirect}});
           if(error)throw error;
           if(data.session&&data.user){
             S.signupPending=false;
