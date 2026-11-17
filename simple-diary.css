@@ -961,3 +961,36 @@ body[data-app="coach"] .container{max-width:720px}
   .food-macro-pills{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
   .food-macro-pills .macro-pill{font-size:11px;padding:10px 4px}
 }
+
+
+/* Water: empty editable field with a discreet grey 0 hint. */
+.water-form input::placeholder{color:#b1a8b0;opacity:1}
+.water-form input::-webkit-input-placeholder{color:#b1a8b0}
+
+/* Food search: explicit one-tap clear X at the end; no stale query after adding. */
+.food-picker-dropdown .food-search-control{
+  position:relative;display:block;min-width:0;width:100%;
+}
+.food-picker-dropdown .food-search-control input{
+  display:block;box-sizing:border-box;width:100%;
+  min-height:46px;border:1px solid #dce7eb;
+  border-radius:8px;padding:11px 48px 11px 13px;
+  background:#fafcfd;color:#253f50;font-size:14px;
+  -webkit-appearance:none;appearance:none;
+}
+.food-picker-dropdown .food-search-control input:focus{
+  outline:2px solid #b8d1dc;outline-offset:0;
+}
+.food-search-clear{
+  position:absolute;right:5px;top:50%;
+  transform:translateY(-50%);
+  width:36px;height:36px;display:flex;
+  align-items:center;justify-content:center;
+  border:0;border-radius:8px;
+  background:#eef3f5;color:#617783;
+  font-size:23px;line-height:1;
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
+}
+.food-search-clear[hidden]{display:none!important}
+.food-search-clear:active{background:#d8e7ed;color:#21485e}
