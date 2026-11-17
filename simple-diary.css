@@ -722,3 +722,55 @@ body[data-app="coach"] .container{max-width:720px}
 }
 .remove-linked-client .ui-icon{width:16px;height:16px;flex:none}
 .remove-linked-client:hover,.remove-linked-client:focus-visible{background:#f9edf0;border-color:#d5b6c1}
+
+
+/* iPhone Safari: bottom navigation is a viewport-level sibling, not a child
+   of the scrollable .container. Keep a solid, stable bar on the bottom edge. */
+#app > .bottom-nav {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  top: auto;
+  z-index: 100;
+  width: 100%;
+  max-width: none;
+  max-height: none;
+  min-height: calc(76px + env(safe-area-inset-bottom));
+  display: grid;
+  align-items: stretch;
+  grid-template-columns: repeat(3, minmax(0,1fr));
+  gap: 2px;
+  padding: 8px max(14px, calc((100vw - 680px) / 2)) calc(8px + env(safe-area-inset-bottom));
+  margin: 0;
+  background: #fff;
+  border-top: 1px solid #e8dfe2;
+  box-shadow: 0 -4px 15px #332d330d;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  transform: none;
+}
+#app > .bottom-nav.coach-nav {
+  grid-template-columns: repeat(4, minmax(0,1fr));
+}
+#app > .bottom-nav button {
+  min-width: 0;
+  min-height: 60px;
+  padding: 6px 3px 4px;
+  touch-action: manipulation;
+}
+#app > .container {
+  padding-bottom: calc(156px + env(safe-area-inset-bottom));
+}
+#app > .container .developer-credit {
+  margin-bottom: 0;
+}
+@media (max-width:420px) {
+  #app > .bottom-nav {
+    padding-left: 7px;
+    padding-right: 7px;
+  }
+  #app > .bottom-nav button {
+    min-height: 60px;
+  }
+}
