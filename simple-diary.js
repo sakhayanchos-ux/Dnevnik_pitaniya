@@ -393,8 +393,10 @@
   function photoItem(m){
     const reviews=S.mealReviews.filter(r=>r.meal_id===m.id);
     let h=`<div class="food-row">${S.photo[m.id]?`<img alt="Фото еды" loading="lazy" src="${esc(S.photo[m.id])}">`:'<div class="photo-none">Без фото</div>'}<div class="food-body"><small>${esc(fmt(m.eaten_at)||"—")}</small><strong>${esc(m.description)}</strong><span>${m.portion_g!=null?`${esc(m.portion_g)} г · `:""}${m.protein_g!=null?`${esc(m.protein_g)} г белка`:""}</span></div>${S.mode==="client"?`<button class="delete-meal" data-action="deleteMeal" data-id="${esc(m.id)}" aria-label="Удалить">×</button>`:""}</div>`;
+    const extraMacros=[m.fat_g!=null?"Ж "+macroText(m.fat_g)+" г":null,m.carbs_g!=null?"У "+macroText(m.carbs_g)+" г":null,m.kcal!=null?macroText(m.kcal)+" ккал":null].filter(Boolean);
+    if(extraMacros.length)h+=`<div class="meal-macro-totals">${extraMacros.join(" · ")}</div>`;
     const ingredients=Array.isArray(m.food_breakdown)?m.food_breakdown:[];
-    if(ingredients.length)h+=`<div class="meal-ingredients"><span>Из чего рассчитан белок:</span>${ingredients.map(food=>`<span>${esc(food.name)} · ${food.portions!=null?esc(food.portions)+" порц.":esc(food.grams)+" г"} · ${esc(food.protein_g)} г белка</span>`).join("")}</div>`;
+    if(ingredients.length)h+=`<div class="meal-ingredients"><span>Из чего рассчитан белок:</span>${ingredients.map(food=>`<span>${esc(food.name)} · ${food.portions!=null?esc(food.portions)+" порц.":esc(food.grams)+" г"} · Б ${food.protein_g==null?"—":macroText(food.protein_g)} г${food.fat_g!=null?" · Ж "+macroText(food.fat_g)+" г":""}${food.carbs_g!=null?" · У "+macroText(food.carbs_g)+" г":""}${food.kcal!=null?" · "+macroText(food.kcal)+" ккал":""}</span>`).join("")}</div>`;
     for(const r of reviews)h+=`<div class="review-label ${esc(r.rating)}"><b>${esc(ratings[r.rating]||"Оценка")}</b>${r.comment?`<span>${esc(r.comment)}</span>`:""}</div>`;
     if(S.mode==="coach"){
       const own=reviews.find(r=>r.consultant_id===S.user.id);
@@ -979,13 +981,18 @@
           protein_per_100g:food.unit==="serving"?null:Number(food.protein),
           protein_per_portion:food.unit==="serving"?Number(food.proteinPerServing):null,
           protein_g:foodProteinValue(food),
+          fat_g:foodMacroValue(food,"fat"),
+          carbs_g:foodMacroValue(food,"carbs"),
+          kcal:foodMacroValue(food,"kcal"),
+          reference_id:food.referenceId||null,
+          source_quality:food.sourceQuality||null,
           source:food.source
         }));
         const path=`${S.user.id}/${S.date}/${crypto.randomUUID()}.jpg`;
         const {error:uploadError}=await db.storage.from("nd-meal-photos").upload(path,processed,{contentType:"image/jpeg",upsert:false});
         if(uploadError)throw uploadError;
         try{
-          await ok(db.from("nd_meals").insert({day_id:day.id,meal_type:v(f,"type"),eaten_at:v(f,"time")||null,description:v(f,"description"),portion_g:v(f,"portion")?Number(v(f,"portion")):S.foodSelection.length&&S.foodSelection.every(food=>food.unit==="g")?Math.round(S.foodSelection.reduce((sum,food)=>sum+food.grams,0)*10)/10:null,protein_g:Number(v(f,"protein")),food_breakdown,photo_path:path}));
+          await ok(db.from("nd_meals").insert({day_id:day.id,meal_type:v(f,"type"),eaten_at:v(f,"time")||null,description:v(f,"description"),portion_g:v(f,"portion")?Number(v(f,"portion")):S.foodSelection.length&&S.foodSelection.every(food=>food.unit==="g")?Math.round(S.foodSelection.reduce((sum,food)=>sum+food.grams,0)*10)/10:null,protein_g:Number(v(f,"protein")),fat_g:foodMacroTotal("fat"),carbs_g:foodMacroTotal("carbs"),kcal:foodMacroTotal("kcal"),food_breakdown,photo_path:path}));
         }catch(e){await db.storage.from("nd-meal-photos").remove([path]);throw e}
         S.openMeal=false;S.foodSelection=[];notify("Запись сохранена");await loadDay();return;
       }
