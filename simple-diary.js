@@ -893,22 +893,29 @@
         if(!file)throw Error("Добавьте фото питания");
         if(file.size>24*1024*1024)throw Error("Фото слишком большое. Выберите другое.");
         if(S.foodSelection.length>30)throw Error("Слишком много продуктов в одном приёме пищи");
-        if(S.foodSelection.some(food=>!Number.isFinite(food.grams)||food.grams<=0||food.grams>20000))
-          throw Error("Укажите правильную массу каждого выбранного продукта");
+        if(S.foodSelection.some(food=>food.unit==="g"&&(!Number.isFinite(food.grams)||food.grams<=0||food.grams>20000)))
+          throw Error("Укажите правильную массу каждого обычного продукта");
+        if(S.foodSelection.some(food=>food.unit==="serving"&&(!Number.isFinite(food.servings)||food.servings<=0||food.servings>100)))
+          throw Error("Укажите количество порций Herbalife");
+        if(missingBrandProteins().length)throw Error("Укажите белок на порцию по этикетке каждого продукта Herbalife");
+        if(S.foodSelection.some(food=>food.unit==="serving"&&(food.proteinPerServing<0||food.proteinPerServing>300)))
+          throw Error("Белок на порцию должен быть от 0 до 300 г");
         const processed=await photoToJpeg(file);
         const day=S.day||await ok(db.from("nd_days").insert({client_id:S.user.id,log_date:S.date}).select().single());
         const food_breakdown=S.foodSelection.map(food=>({
           name:food.name,
-          grams:Number(food.grams),
-          protein_per_100g:Number(food.protein),
-          protein_g:Math.round(food.protein*food.grams/10)/10,
+          grams:food.unit==="serving"?null:Number(food.grams),
+          portions:food.unit==="serving"?Number(food.servings):null,
+          protein_per_100g:food.unit==="serving"?null:Number(food.protein),
+          protein_per_portion:food.unit==="serving"?Number(food.proteinPerServing):null,
+          protein_g:foodProteinValue(food),
           source:food.source
         }));
         const path=`${S.user.id}/${S.date}/${crypto.randomUUID()}.jpg`;
         const {error:uploadError}=await db.storage.from("nd-meal-photos").upload(path,processed,{contentType:"image/jpeg",upsert:false});
         if(uploadError)throw uploadError;
         try{
-          await ok(db.from("nd_meals").insert({day_id:day.id,meal_type:v(f,"type"),eaten_at:v(f,"time")||null,description:v(f,"description"),portion_g:v(f,"portion")?Number(v(f,"portion")):S.foodSelection.length?Math.round(S.foodSelection.reduce((sum,food)=>sum+food.grams,0)*10)/10:null,protein_g:Number(v(f,"protein")),food_breakdown,photo_path:path}));
+          await ok(db.from("nd_meals").insert({day_id:day.id,meal_type:v(f,"type"),eaten_at:v(f,"time")||null,description:v(f,"description"),portion_g:v(f,"portion")?Number(v(f,"portion")):S.foodSelection.length&&S.foodSelection.every(food=>food.unit==="g")?Math.round(S.foodSelection.reduce((sum,food)=>sum+food.grams,0)*10)/10:null,protein_g:Number(v(f,"protein")),food_breakdown,photo_path:path}));
         }catch(e){await db.storage.from("nd-meal-photos").remove([path]);throw e}
         S.openMeal=false;S.foodSelection=[];notify("Запись сохранена");await loadDay();return;
       }
@@ -1144,8 +1151,18 @@
   document.addEventListener("input",e=>{
     const target=e.target;
     if(target.id==="foodSearch"){
-      const results=document.getElementById("foodSearchResults");
-      if(results)results.innerHTML=foodSearchItems(target.value);
+      S.foodTerm=target.value;
+      if(S.foodTerm.trim())S.foodFilter="all";
+      refreshFoodDropdown();
+      return;
+    }
+    if(target.matches?.(".food-serving-count,.food-serving-protein")){
+      const index=Number(target.dataset.index),item=S.foodSelection[index];
+      if(!item||item.unit!=="serving")return;
+      const value=target.value.trim()===""?null:Number(target.value);
+      if(target.classList.contains("food-serving-count"))item.servings=value===null?0:value;
+      else item.proteinPerServing=value;
+      refreshFoodCalculator(true);
       return;
     }
     if(target.matches?.(".food-weight")){
@@ -1161,6 +1178,18 @@
     }
   });
   document.addEventListener("change",e=>{
+    if(e.target.matches?.('#mealForm select[name="type"]')){
+      S.mealType=e.target.value;
+      S.foodFilter=foodDefaultCategory(S.mealType);
+      S.foodTerm="";S.foodOpen=false;
+      const dropdown=document.getElementById("foodPickerDropdown");
+      if(dropdown)dropdown.hidden=true;
+      const trigger=document.querySelector(".food-picker-trigger");
+      if(trigger){trigger.setAttribute("aria-expanded","false");const arrow=trigger.querySelector(".food-picker-arrow");if(arrow)arrow.textContent="⌄";}
+      const search=document.getElementById("foodSearch");
+      if(search)search.value="";
+      refreshFoodDropdown();
+    }
     if(e.target.id==="diaryDate"&&e.target.value)guarded(async()=>{S.date=e.target.value;S.openMeal=false;await loadDay()});
     if(e.target.matches('input[name="photo"]')){
       const file=e.target.files?.[0],preview=document.getElementById("photoPreview");
