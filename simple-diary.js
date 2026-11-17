@@ -812,11 +812,11 @@
         const file=f.elements.namedItem("photo")?.files?.[0];
         if(!file)throw Error("Добавьте фото питания");
         if(file.size>24*1024*1024)throw Error("Фото слишком большое. Выберите другое.");
-        const processed=await photoToJpeg(file);
-        const day=S.day||await ok(db.from("nd_days").insert({client_id:S.user.id,log_date:S.date}).select().single());
         if(S.foodSelection.length>30)throw Error("Слишком много продуктов в одном приёме пищи");
         if(S.foodSelection.some(food=>!Number.isFinite(food.grams)||food.grams<=0||food.grams>20000))
           throw Error("Укажите правильную массу каждого выбранного продукта");
+        const processed=await photoToJpeg(file);
+        const day=S.day||await ok(db.from("nd_days").insert({client_id:S.user.id,log_date:S.date}).select().single());
         const food_breakdown=S.foodSelection.map(food=>({
           name:food.name,
           grams:Number(food.grams),
@@ -880,6 +880,7 @@
         if(name.length<2||name.length>120)throw Error("Укажите название продукта (2–120 символов)");
         if(v(form,"foodPer100")===""||!Number.isFinite(protein)||protein<0||protein>100)
           throw Error("Введите белок на 100 г с этикетки — от 0 до 100 г");
+        if(S.foodSelection.length>=30)throw Error("Максимум 30 ингредиентов в одном приёме пищи");
         const item=await ok(db.from("nd_foods").insert({
           owner_id:S.user.id,name,protein_per_100g:protein
         }).select("id,name,protein_per_100g").single());
