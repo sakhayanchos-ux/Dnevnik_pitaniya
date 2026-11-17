@@ -412,7 +412,7 @@
       else if(S.tab==="results")h+=S.viewingClient&&S.selected?coachDetailBack()+resultsView():coachProgressView();
       else h+=S.viewingClient&&S.selected?coachDetailBack()+coachClientCard():coachClientsView();
     }else h+=S.tab==="profile"?profileView():S.tab==="results"?resultsView():diaryView();
-    root.innerHTML=h+developerFooter()+bottom()+"</div>";
+    root.innerHTML=h+developerFooter()+"</div>"+bottom();
   }
   async function enrollConsultant(user,providedName=""){
     if(!isCoachApp||!user)throw Error("Откройте кабинет консультанта для регистрации");
