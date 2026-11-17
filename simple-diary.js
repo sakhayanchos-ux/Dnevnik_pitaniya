@@ -20,8 +20,84 @@
   const initialDate=/^\d{4}-\d{2}-\d{2}$/.test(pathDate||"")?pathDate:null;
   const root=document.getElementById("app");
   const toastEl=document.getElementById("toast");
-  const mealNames={breakfast:"Завтрак",snack1:"Первый перекус",lunch:"Обед",snack2:"Второй перекус",dinner:"Ужин",other:"Другое"};
-  const slots=[["breakfast","01"],["snack1","02"],["lunch","03"],["snack2","04"],["dinner","05"]];
+  const mealNames={breakfast:"Завтрак",snack1:"Первый перекус",lunch:"Обед",snack2:"Второй перекус",dinner:"Ужин",snack3:"Вечерний перекус",other:"Другое"};
+  const slots=[["breakfast","01"],["snack1","02"],["lunch","03"],["snack2","04"],["dinner","05"],["snack3","06"]];
+
+  // Reference values are approximate grams of protein per 100 g of the named
+  // food in the stated prepared form. Recipes and brand labels can differ.
+  const commonFoods=[
+    ["macaroni","Макароны отварные",5.8,"Готовый продукт"],
+    ["meat-cutlet","Котлета мясная домашняя",16,"Зависит от рецепта"],
+    ["chicken-cutlet","Котлета куриная домашняя",18,"Зависит от рецепта"],
+    ["chicken","Куриная грудка готовая",31,"После приготовления"],
+    ["buckwheat","Гречка отварная",3.4,"На воде"],
+    ["rice","Рис отварной",2.7,"Готовый продукт"],
+    ["egg","Яйцо варёное",12.6,"Без скорлупы"],
+    ["cottage","Творог 5%",17,"Уточните по этикетке"],
+    ["milk","Молоко",3.2,"Уточните по этикетке"],
+    ["kefir","Кефир",3.0,"Уточните по этикетке"],
+    ["yogurt","Йогурт натуральный",3.5,"Без добавок"],
+    ["cheese","Сыр твёрдый",25,"Зависит от сорта"],
+    ["beef","Говядина готовая",26,"Без добавок"],
+    ["fish","Рыба запечённая",21,"Зависит от вида"],
+    ["salmon","Лосось запечённый",22,"Готовый продукт"],
+    ["potato","Картофель отварной",2,"Без добавок"],
+    ["broccoli","Брокколи отварная",2.4,"Готовый продукт"],
+    ["porridge","Овсяная каша на воде",2.4,"Готовый продукт"],
+    ["beans","Фасоль варёная",8.7,"Готовый продукт"],
+    ["lentils","Чечевица варёная",9,"Готовый продукт"],
+    ["bread","Хлеб пшеничный",8.5,"Зависит от марки"],
+    ["banana","Банан",1.1,"Съедобная часть"],
+    ["apple","Яблоко",0.3,"Съедобная часть"],
+    ["chicken-soup","Суп куриный домашний",3,"Зависит от рецепта"]
+  ].map(([id,name,protein,note])=>({id:"ref:"+id,name,protein:Number(protein),source:"Ориентир",note}));
+  const eveningOptions=["Коллаген","Вечерний коктейль","СиАр","Nightworks"];
+  const foodKey=x=>String(x||"").toLocaleLowerCase("ru-RU").replace(/ё/g,"е").trim();
+  const foodCatalog=()=>[
+    ...commonFoods,
+    ...S.foods.map(f=>({id:"mine:"+f.id,name:f.name,protein:Number(f.protein_per_100g),source:"Мой продукт",note:"По данным пользователя"}))
+  ];
+  const proteinFromSelection=()=>Math.round(S.foodSelection.reduce((sum,f)=>sum+f.protein*f.grams/100,0)*10)/10;
+  const foodById=id=>foodCatalog().find(f=>f.id===id);
+  function foodSearchItems(query=""){
+    const term=foodKey(query);
+    const found=foodCatalog().filter(food=>!term||foodKey(food.name).includes(term)).slice(0,12);
+    return found.length?found.map(food=>`<button type="button" class="food-option" data-action="chooseFood" data-food="${esc(food.id)}"><span>${esc(food.name)}<small>${esc(food.note)}</small></span><b>${Number(food.protein).toLocaleString("ru-RU")} г / 100 г</b></button>`).join(""):'<p class="food-empty">Не нашли продукт? Добавьте свой по этикетке ниже.</p>';
+  }
+  function foodSelectedItems(){
+    return S.foodSelection.map((food,index)=>`<div class="food-selected-row">
+      <span class="food-name">${esc(food.name)}<small>${Number(food.protein).toLocaleString("ru-RU")} г белка / 100 г</small></span>
+      <label><span>Граммы</span><input class="food-weight" type="number" inputmode="decimal" min="1" max="20000" step="1" value="${food.grams}" data-index="${index}" aria-label="Масса продукта ${esc(food.name)}"></label>
+      <b>${(Math.round(food.protein*food.grams/10)/10).toLocaleString("ru-RU")} г</b>
+      <button type="button" class="food-remove" data-action="removeFood" data-index="${index}" aria-label="Убрать ${esc(food.name)}">×</button>
+    </div>`).join("");
+  }
+  function refreshFoodCalculator(){
+    const selected=document.getElementById("foodSelected");
+    if(selected)selected.innerHTML=foodSelectedItems();
+    const result=document.getElementById("foodProteinTotal");
+    if(result)result.textContent=S.foodSelection.length?`Примерно ${proteinFromSelection().toLocaleString("ru-RU")} г белка в выбранных продуктах`:"Выберите продукты и укажите граммы";
+    if(!S.foodSelection.length)return;
+    const form=document.getElementById("mealForm");
+    if(!form)return;
+    const protein=form.elements.namedItem("protein");
+    if(protein)protein.value=String(proteinFromSelection());
+    const description=form.elements.namedItem("description");
+    if(description&&(!description.value.trim()||description.dataset.foodAuto==="1")){
+      description.value=S.foodSelection.map(f=>f.name+" — "+f.grams+" г").join("; ");
+      description.dataset.foodAuto="1";
+    }
+  }
+  async function loadPersonalFoods(){
+    if(!S.user||isCoachApp)return;
+    try{
+      const rows=await ok(db.from("nd_foods").select("id,name,protein_per_100g").eq("owner_id",S.user.id).order("name").limit(300));
+      S.foods=(rows||[]).filter(row=>row.protein_per_100g!=null);
+    }catch(error){
+      console.warn("Личные продукты пока недоступны",error);
+      S.foods=[];
+    }
+  }
   const ratings={good:"Хорошо",improve:"Улучшить",attention:"Внимание"};
   const icon=(name)=>'<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.55" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+({
     book:'<rect x="4" y="3.8" width="16" height="16.4" rx="1.8"/><path d="M8.5 3.8v16.4M11.5 8h5M11.5 12h5M11.5 16h3"/>',
@@ -41,7 +117,7 @@
     inbox:'<path d="M4 4h16v15H4V4Z"/><path d="M4 14h5l2 3h2l2-3h5"/>',
     refresh:'<path d="M20 7v5h-5"/><path d="M4 17v-5h5"/><path d="M5.5 9a7.2 7.2 0 0 1 12.6-2L20 12M4 12l1.9 5a7.2 7.2 0 0 0 12.6-2"/>'
   }[name]||'')+'</svg>';
-  const S={user:null,profile:null,people:{},consultants:[],clients:[],mode:isCoachApp?"coach":"client",denied:false,deniedReason:"",consultantCode:null,signupPending:false,pushEnabled:false,tab:isCoachApp?"inbox":"diary",inboxFilter:"pending",inbox:[],submission:null,clientRequest:null,clientRequests:[],clientWeights:{},viewingClient:false,receivedDiary:false,receivedDiaryLoading:false,date:initialDate||localDate(),selected:null,day:null,meals:[],mealReviews:[],dayReviews:[],weights:[],photo:{},openMeal:false,mealType:"breakfast",authMode:"login",recovery:recoveryFromUrl,busy:false,navSeq:0};
+  const S={user:null,profile:null,people:{},consultants:[],clients:[],foods:[],foodSelection:[],mode:isCoachApp?"coach":"client",denied:false,deniedReason:"",consultantCode:null,signupPending:false,pushEnabled:false,tab:isCoachApp?"inbox":"diary",inboxFilter:"pending",inbox:[],submission:null,clientRequest:null,clientRequests:[],clientWeights:{},viewingClient:false,receivedDiary:false,receivedDiaryLoading:false,date:initialDate||localDate(),selected:null,day:null,meals:[],mealReviews:[],dayReviews:[],weights:[],photo:{},openMeal:false,mealType:"breakfast",authMode:"login",recovery:recoveryFromUrl,busy:false,navSeq:0};
   const esc=x=>String(x??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   const num=x=>Number(x||0);
   const cleanName=x=>/^(?:phone[._ -]?[0-9+]+|[+0-9][0-9 .-]{7,})$/i.test(String(x||""))?"":String(x||"");
@@ -229,7 +305,7 @@
       h+=`<div class="request-banner">${icon("send")}<div><b>Консультант ${esc(consultant)} просит отправить дневник за этот день</b><p>Заполни питание и отправь дневник на проверку.</p></div><button class="secondary" data-action="${S.meals.length?"sendDiary":"openMeal"}" ${S.meals.length?'':'data-type="breakfast"'}>${S.meals.length?"Отправить":"Заполнить"}</button></div>`;
     }
     if(!coach&&(!p?.weight_kg||!p?.goal))h+=`<div class="hint">Укажите вес и цель — рассчитаем воду и белок. <button data-action="tab" data-tab="profile">Открыть профиль →</button></div>`;
-    h+=`<section class="meal-section"><div class="section-title"><div><h2>Моё питание</h2><p>Пять приёмов пищи</p></div>${coach?"":`<button class="primary compact" data-action="openMeal" data-type="breakfast">${icon("camera")} Добавить фото</button>`}</div>`;
+    h+=`<section class="meal-section"><div class="section-title"><div><h2>Моё питание</h2><p>Шесть приёмов пищи</p></div>${coach?"":`<button class="primary compact" data-action="openMeal" data-type="breakfast">${icon("camera")} Добавить фото</button>`}</div>`;
     for(const [type,number] of slots){
       const entries=S.meals.filter(m=>m.meal_type===type);
       h+=`<article class="meal-slot"><div class="slot-header"><span class="slot-number">${number}</span><strong>${mealNames[type]}</strong>${entries.length?`<span class="count">${entries.length}</span>`:""}${coach?"":`<button data-action="openMeal" data-type="${type}" class="plus" aria-label="Добавить запись">${icon("plus")}</button>`}</div>`;
