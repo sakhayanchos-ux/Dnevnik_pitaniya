@@ -68,13 +68,19 @@
     return S.foodSelection.map((food,index)=>`<div class="food-selected-row">
       <span class="food-name">${esc(food.name)}<small>${Number(food.protein).toLocaleString("ru-RU")} г белка / 100 г</small></span>
       <label><span>Граммы</span><input class="food-weight" type="number" inputmode="decimal" min="1" max="20000" step="1" value="${food.grams}" data-index="${index}" aria-label="Масса продукта ${esc(food.name)}"></label>
-      <b>${(Math.round(food.protein*food.grams/10)/10).toLocaleString("ru-RU")} г</b>
+      <b class="food-amount-protein">${(Math.round(food.protein*food.grams/10)/10).toLocaleString("ru-RU")} г</b>
       <button type="button" class="food-remove" data-action="removeFood" data-index="${index}" aria-label="Убрать ${esc(food.name)}">×</button>
     </div>`).join("");
   }
-  function refreshFoodCalculator(){
+  function refreshFoodCalculator(keepInputs=false){
     const selected=document.getElementById("foodSelected");
-    if(selected)selected.innerHTML=foodSelectedItems();
+    if(selected&&!keepInputs)selected.innerHTML=foodSelectedItems();
+    if(selected&&keepInputs){
+      selected.querySelectorAll(".food-selected-row").forEach((row,index)=>{
+        const food=S.foodSelection[index];
+        if(food){const total=row.querySelector(".food-amount-protein");if(total)total.textContent=(Math.round(food.protein*food.grams/10)/10).toLocaleString("ru-RU")+" г";}
+      });
+    }
     const result=document.getElementById("foodProteinTotal");
     if(result)result.textContent=S.foodSelection.length?`Примерно ${proteinFromSelection().toLocaleString("ru-RU")} г белка в выбранных продуктах`:"Выберите продукты и укажите граммы";
     if(!S.foodSelection.length)return;
@@ -809,6 +815,8 @@
         const processed=await photoToJpeg(file);
         const day=S.day||await ok(db.from("nd_days").insert({client_id:S.user.id,log_date:S.date}).select().single());
         if(S.foodSelection.length>30)throw Error("Слишком много продуктов в одном приёме пищи");
+        if(S.foodSelection.some(food=>!Number.isFinite(food.grams)||food.grams<=0||food.grams>20000))
+          throw Error("Укажите правильную массу каждого выбранного продукта");
         const food_breakdown=S.foodSelection.map(food=>({
           name:food.name,
           grams:Number(food.grams),
@@ -820,7 +828,7 @@
         const {error:uploadError}=await db.storage.from("nd-meal-photos").upload(path,processed,{contentType:"image/jpeg",upsert:false});
         if(uploadError)throw uploadError;
         try{
-          await ok(db.from("nd_meals").insert({day_id:day.id,meal_type:v(f,"type"),eaten_at:v(f,"time")||null,description:v(f,"description"),portion_g:v(f,"portion")?Number(v(f,"portion")):null,protein_g:Number(v(f,"protein")),food_breakdown,photo_path:path}));
+          await ok(db.from("nd_meals").insert({day_id:day.id,meal_type:v(f,"type"),eaten_at:v(f,"time")||null,description:v(f,"description"),portion_g:v(f,"portion")?Number(v(f,"portion")):S.foodSelection.length?Math.round(S.foodSelection.reduce((sum,food)=>sum+food.grams,0)*10)/10:null,protein_g:Number(v(f,"protein")),food_breakdown,photo_path:path}));
         }catch(e){await db.storage.from("nd-meal-photos").remove([path]);throw e}
         S.openMeal=false;S.foodSelection=[];notify("Запись сохранена");await loadDay();return;
       }
@@ -837,6 +845,58 @@
   document.addEventListener("click",e=>{
     const b=e.target.closest("[data-action]");if(!b)return;
     const action=b.dataset.action;
+
+    if(action==="chooseFood"){
+      const chosen=foodById(b.dataset.food);
+      if(!chosen)return;
+      if(S.foodSelection.length>=30){notify("Можно выбрать до 30 продуктов");return;}
+      const already=S.foodSelection.find(item=>item.id===chosen.id);
+      if(already){notify("Этот продукт уже добавлен. Измените его граммы.");return;}
+      S.foodSelection.push({...chosen,grams:100});
+      refreshFoodCalculator();
+      return;
+    }
+    if(action==="removeFood"){
+      const index=Number(b.dataset.index);
+      if(!Number.isInteger(index)||index<0||index>=S.foodSelection.length)return;
+      S.foodSelection.splice(index,1);
+      refreshFoodCalculator();
+      return;
+    }
+    if(action==="eveningPreset"){
+      const name=b.dataset.name;
+      if(!eveningOptions.includes(name))return;
+      const description=document.querySelector('#mealForm [name="description"]');
+      if(description){description.value=name;description.dataset.foodAuto="0";description.focus();}
+      return;
+    }
+    if(action==="saveOwnFood"){
+      guarded(async()=>{
+        if(!S.user||isCoachApp)throw Error("Справочник доступен только клиенту");
+        const form=document.getElementById("mealForm");
+        if(!form)throw Error("Откройте добавление питания");
+        const name=v(form,"foodName").replace(/\\s+/g," ").trim();
+        const protein=Number(v(form,"foodPer100").replace(",","."));
+        if(name.length<2||name.length>120)throw Error("Укажите название продукта (2–120 символов)");
+        if(v(form,"foodPer100")===""||!Number.isFinite(protein)||protein<0||protein>100)
+          throw Error("Введите белок на 100 г с этикетки — от 0 до 100 г");
+        const item=await ok(db.from("nd_foods").insert({
+          owner_id:S.user.id,name,protein_per_100g:protein
+        }).select("id,name,protein_per_100g").single());
+        S.foods.push(item);
+        const query=document.getElementById("foodSearch");
+        if(query)query.value=name;
+        const results=document.getElementById("foodSearchResults");
+        if(results)results.innerHTML=foodSearchItems(name);
+        const own=foodById("mine:"+item.id);
+        if(own)S.foodSelection.push({...own,grams:100});
+        refreshFoodCalculator();
+        form.elements.namedItem("foodName").value="";
+        form.elements.namedItem("foodPer100").value="";
+        notify("Продукт добавлен в справочник и расчёт");
+      });
+      return;
+    }
     if(action==="togglePassword"){
       const input=document.getElementById(b.getAttribute("aria-controls"));
       if(!(input instanceof HTMLInputElement))return;
@@ -974,6 +1034,26 @@
         notify("Запись удалена");await loadDay();return;
       }
     });
+  });
+
+  document.addEventListener("input",e=>{
+    const target=e.target;
+    if(target.id==="foodSearch"){
+      const results=document.getElementById("foodSearchResults");
+      if(results)results.innerHTML=foodSearchItems(target.value);
+      return;
+    }
+    if(target.matches?.(".food-weight")){
+      const index=Number(target.dataset.index),item=S.foodSelection[index];
+      if(!item)return;
+      const grams=Number(target.value);
+      item.grams=Number.isFinite(grams)?Math.max(0,Math.min(20000,grams)):0;
+      refreshFoodCalculator(true);
+      return;
+    }
+    if(target.matches?.('#mealForm [name="description"]')){
+      target.dataset.foodAuto="0";
+    }
   });
   document.addEventListener("change",e=>{
     if(e.target.id==="diaryDate"&&e.target.value)guarded(async()=>{S.date=e.target.value;S.openMeal=false;await loadDay()});
