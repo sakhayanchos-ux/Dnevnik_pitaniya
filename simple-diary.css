@@ -994,3 +994,8 @@ body[data-app="coach"] .container{max-width:720px}
 }
 .food-search-clear[hidden]{display:none!important}
 .food-search-clear:active{background:#d8e7ed;color:#21485e}
+
+.food-picker-dropdown .food-search-field>label{
+  display:block;font-size:12px;font-weight:740;color:#655462;
+  margin-bottom:7px;
+}
