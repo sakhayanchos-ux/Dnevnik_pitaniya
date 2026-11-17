@@ -238,6 +238,8 @@
   function photoItem(m){
     const reviews=S.mealReviews.filter(r=>r.meal_id===m.id);
     let h=`<div class="food-row">${S.photo[m.id]?`<img alt="Фото еды" loading="lazy" src="${esc(S.photo[m.id])}">`:'<div class="photo-none">Без фото</div>'}<div class="food-body"><small>${esc(fmt(m.eaten_at)||"—")}</small><strong>${esc(m.description)}</strong><span>${m.portion_g!=null?`${esc(m.portion_g)} г · `:""}${m.protein_g!=null?`${esc(m.protein_g)} г белка`:""}</span></div>${S.mode==="client"?`<button class="delete-meal" data-action="deleteMeal" data-id="${esc(m.id)}" aria-label="Удалить">×</button>`:""}</div>`;
+    const ingredients=Array.isArray(m.food_breakdown)?m.food_breakdown:[];
+    if(ingredients.length)h+=`<div class="meal-ingredients"><span>Из чего рассчитан белок:</span>${ingredients.map(food=>`<span>${esc(food.name)} · ${esc(food.grams)} г · ${esc(food.protein_g)} г белка</span>`).join("")}</div>`;
     for(const r of reviews)h+=`<div class="review-label ${esc(r.rating)}"><b>${esc(ratings[r.rating]||"Оценка")}</b>${r.comment?`<span>${esc(r.comment)}</span>`:""}</div>`;
     if(S.mode==="coach"){
       const own=reviews.find(r=>r.consultant_id===S.user.id);
@@ -319,7 +321,23 @@
       if(S.openMeal)h+=`<section class="new-entry" id="newEntry"><div class="section-title"><h2>Добавить питание</h2><button class="close" data-action="closeMeal">×</button></div><form id="mealForm">
         <label class="field"><span>Приём пищи</span><select name="type">${Object.entries(mealNames).map(([key,label])=>`<option value="${key}" ${key===S.mealType?"selected":""}>${label}</option>`).join("")}</select></label>
         <label class="field"><span>Фото еды *</span><input type="file" name="photo" accept="image/*" required></label><div id="photoPreview" class="photo-preview" hidden></div>
-        <label class="field"><span>Что ели? *</span><textarea name="description" rows="2" maxlength="2000" placeholder="Например, омлет с овощами" required></textarea></label>
+        <label class="field"><span>Что ели? *</span><textarea name="description" rows="2" maxlength="2000" placeholder="Например, котлета с макаронами" required></textarea></label>
+        ${S.mealType==="snack3"?`<div class="evening-presets"><span>Вечером часто выбирают:</span>${eveningOptions.map(name=>`<button type="button" data-action="eveningPreset" data-name="${esc(name)}">${esc(name)}</button>`).join("")}</div>`:""}
+        <div class="food-calculator" id="foodCalculator">
+          <h3>Рассчитать белок по продуктам</h3>
+          <p>Выбери продукты из блюда и укажи вес каждого. Например, котлета + макароны.</p>
+          <label class="field"><span>Поиск продуктов</span><input id="foodSearch" type="search" placeholder="Например: котлета, макароны, творог" autocomplete="off"></label>
+          <div class="food-search-items" id="foodSearchResults">${foodSearchItems()}</div>
+          <div id="foodSelected" class="food-selected">${foodSelectedItems()}</div>
+          <p class="food-calculated" id="foodProteinTotal">Выберите продукты и укажите граммы</p>
+          <p class="food-disclaimer">Расчёт приблизительный: белок зависит от рецепта и приготовления. Для продуктов Herbalife и других марок используйте данные своей упаковки.</p>
+          <details class="add-own-food"><summary>Нет продукта? Добавить свой</summary>
+            <p>Введите название и белок на 100 г по этикетке. Продукт появится в вашем личном справочнике.</p>
+            <label class="field"><span>Название продукта</span><input name="foodName" maxlength="120" placeholder="Например, мой вечерний коктейль"></label>
+            <label class="field"><span>Белок на 100 г</span><input name="foodPer100" type="number" inputmode="decimal" min="0" max="100" step=".1" placeholder="По этикетке"></label>
+            <button class="secondary" data-action="saveOwnFood" type="button">Сохранить в справочник</button>
+          </details>
+        </div>
         <div class="two">${formField("time","Время *","time",new Date().toTimeString().slice(0,5),"required")}${formField("protein","Белок, г *","number","","min=0 max=3000 step=.1 required")}</div>
         ${formField("portion","Порция, г (по желанию)","number","","min=1 max=20000 step=.1")}
         <button class="primary full">Сохранить запись</button></form></section>`;
@@ -535,6 +553,7 @@
       p=await ok(db.from("nd_profiles").insert({id:user.id,display_name:clean}).select().single());
     }
     S.profile=p;
+    await loadPersonalFoods();
     if(supportsPush())void navigator.serviceWorker.register(SW_PATH,{scope:new URL("./",SW_PATH).pathname}).catch(e=>console.warn("Service worker unavailable",e));
     await loadLinks();
     if(isCoachApp){
@@ -789,13 +808,21 @@
         if(file.size>24*1024*1024)throw Error("Фото слишком большое. Выберите другое.");
         const processed=await photoToJpeg(file);
         const day=S.day||await ok(db.from("nd_days").insert({client_id:S.user.id,log_date:S.date}).select().single());
+        if(S.foodSelection.length>30)throw Error("Слишком много продуктов в одном приёме пищи");
+        const food_breakdown=S.foodSelection.map(food=>({
+          name:food.name,
+          grams:Number(food.grams),
+          protein_per_100g:Number(food.protein),
+          protein_g:Math.round(food.protein*food.grams/10)/10,
+          source:food.source
+        }));
         const path=`${S.user.id}/${S.date}/${crypto.randomUUID()}.jpg`;
         const {error:uploadError}=await db.storage.from("nd-meal-photos").upload(path,processed,{contentType:"image/jpeg",upsert:false});
         if(uploadError)throw uploadError;
         try{
-          await ok(db.from("nd_meals").insert({day_id:day.id,meal_type:v(f,"type"),eaten_at:v(f,"time")||null,description:v(f,"description"),portion_g:v(f,"portion")?Number(v(f,"portion")):null,protein_g:Number(v(f,"protein")),photo_path:path}));
+          await ok(db.from("nd_meals").insert({day_id:day.id,meal_type:v(f,"type"),eaten_at:v(f,"time")||null,description:v(f,"description"),portion_g:v(f,"portion")?Number(v(f,"portion")):null,protein_g:Number(v(f,"protein")),food_breakdown,photo_path:path}));
         }catch(e){await db.storage.from("nd-meal-photos").remove([path]);throw e}
-        S.openMeal=false;notify("Запись сохранена");await loadDay();return;
+        S.openMeal=false;S.foodSelection=[];notify("Запись сохранена");await loadDay();return;
       }
       if(f.classList.contains("mealReviewForm")){
         await ok(db.from("nd_meal_reviews").upsert({meal_id:f.dataset.id,consultant_id:S.user.id,rating:v(f,"rating")||"good",comment:v(f,"comment"),updated_at:new Date().toISOString()},{onConflict:"meal_id,consultant_id"}));
@@ -849,8 +876,8 @@
       return;
     }
     if(action==="inboxFilter"){S.inboxFilter=b.dataset.filter;render();return}
-    if(action==="openMeal"){S.mealType=b.dataset.type||"breakfast";S.openMeal=true;render();document.getElementById("newEntry")?.scrollIntoView({behavior:"smooth",block:"start"});return}
-    if(action==="closeMeal"){S.openMeal=false;render();return}
+    if(action==="openMeal"){S.mealType=b.dataset.type||"breakfast";S.foodSelection=[];S.openMeal=true;render();document.getElementById("newEntry")?.scrollIntoView({behavior:"smooth",block:"start"});return}
+    if(action==="closeMeal"){S.openMeal=false;S.foodSelection=[];render();return}
     guarded(async()=>{
       if(action==="logout"){if(S.user&&S.pushEnabled)await unsubscribePush();await db.auth.signOut();S.user=null;S.denied=false;S.deniedReason="";S.consultantCode=null;S.pushEnabled=false;render();return}
       if(action==="refreshClients"){await loadLinks();notify("Имена клиентов обновлены");return}
