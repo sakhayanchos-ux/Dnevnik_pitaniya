@@ -60,59 +60,131 @@
     id:"ref:extra-"+id,name,protein:Number(protein),group,source:"Ориентир",
     unit:"g",note:"Примерно; уточните по рецепту/упаковке"
   }));
+
   const eveningOptions=["Коллаген","Вечерний коктейль","СиАр","Nightworks"];
   const foodKey=x=>String(x||"").toLocaleLowerCase("ru-RU").replace(/ё/g,"е").trim();
+  const foodDefaultCategory=meal=>["breakfast","snack1","snack2","snack3"].includes(meal)?"herbalife":"ordinary";
   const foodCatalog=()=>[
-    ...commonFoods,
-    ...S.foods.map(f=>({id:"mine:"+f.id,name:f.name,protein:Number(f.protein_per_100g),source:"Мой продукт",note:"По данным пользователя"}))
+    ...herbalifeFoods,
+    ...commonFoods.map(f=>({...f,unit:"g",group:/яйц|омлет|каша|творог|молок|сыр|йогурт|кефир|хлеб/i.test(f.name)?"breakfast":/суп|котлет|макарон|гречка|рис|говядина|куриная грудка/i.test(f.name)?"lunch":"snack"})),
+    ...extraOrdinaryFoods,
+    ...S.foods.map(f=>({id:"mine:"+f.id,name:f.name,protein:Number(f.protein_per_100g),source:"Мой продукт",unit:"g",group:"other",note:"По данным пользователя"}))
   ];
-  const proteinFromSelection=()=>Math.round(S.foodSelection.reduce((sum,f)=>sum+f.protein*f.grams/100,0)*10)/10;
   const foodById=id=>foodCatalog().find(f=>f.id===id);
+  const foodProteinValue=food=>food.unit==="serving"
+    ? (Number.isFinite(food.proteinPerServing)?Math.round(food.proteinPerServing*food.servings*10)/10:null)
+    : Math.round(food.protein*food.grams/10)/10;
+  const missingBrandProteins=()=>S.foodSelection.filter(f=>f.unit==="serving"&&!Number.isFinite(f.proteinPerServing));
+  const proteinFromSelection=()=>Math.round(S.foodSelection.reduce((sum,f)=>sum+(foodProteinValue(f)||0),0)*10)/10;
+  const mealFoodMatch=food=>{
+    const group=food.group||"other";
+    if(S.mealType==="breakfast")return group==="shake"||group==="breakfast"?0:group==="drink"?1:group==="snack"?2:4;
+    if(S.mealType==="snack3")return group==="evening"?0:group==="drink"?1:group==="shake"?2:3;
+    if(S.mealType==="snack1"||S.mealType==="snack2")return group==="snack"?0:group==="shake"?1:group==="drink"?2:3;
+    return ["lunch","dinner","savory"].includes(group)?0:group==="shake"?2:3;
+  };
+
   function foodSearchItems(query=""){
-    const term=foodKey(query);
-    const found=foodCatalog().filter(food=>!term||foodKey(food.name).includes(term)).slice(0,12);
-    return found.length?found.map(food=>`<button type="button" class="food-option" data-action="chooseFood" data-food="${esc(food.id)}"><span>${esc(food.name)}<small>${esc(food.note)}</small></span><b>${Number(food.protein).toLocaleString("ru-RU")} г / 100 г</b></button>`).join(""):'<p class="food-empty">Не нашли продукт? Добавьте свой по этикетке ниже.</p>';
-  }
+  const term=foodKey(query);
+  const tokens=term.split(/\s+/).filter(Boolean);
+  const items=foodCatalog().filter(food=>{
+    if(!term&&S.foodFilter==="herbalife")return food.source==="Herbalife";
+    if(!term&&S.foodFilter==="ordinary")return food.source==="Ориентир";
+    if(!term&&S.foodFilter==="mine")return food.source==="Мой продукт";
+    const hay=foodKey(food.name+" "+(food.aliases||"")+" "+(food.note||"")+" "+food.source);
+    return tokens.every(t=>hay.includes(t));
+  });
+  items.sort((a,b)=>{
+    if(term){
+      const prefix=food=>foodKey(food.name).startsWith(term)?-5:0;
+      return prefix(a)-prefix(b)||Number(a.source!=="Herbalife")-Number(b.source!=="Herbalife")||a.name.localeCompare(b.name,"ru");
+    }
+    if(S.foodFilter==="all"&&["breakfast","snack1","snack2","snack3"].includes(S.mealType)){
+      const d=Number(a.source!=="Herbalife")-Number(b.source!=="Herbalife");
+      if(d)return d;
+    }
+    return mealFoodMatch(a)-mealFoodMatch(b)||a.name.localeCompare(b.name,"ru");
+  });
+  const shown=items.slice(0,40);
+  if(!shown.length)return '<p class="food-empty">Не нашли продукт? Добавьте свой по этикетке ниже.</p>';
+  return shown.map(food=>{
+    const brand=food.source==="Herbalife";
+    return `<button type="button" class="food-option ${brand?"is-herbalife":""}" data-action="chooseFood" data-food="${esc(food.id)}"><span>${esc(food.name)}<small>${brand?"Herbalife · белок по этикетке":food.source==="Мой продукт"?"Мой справочник":food.note}</small></span><b>${brand?"По упаковке":Number(food.protein).toLocaleString("ru-RU")+" г / 100 г"}</b></button>`;
+  }).join("")+(items.length>shown.length?`<p class="food-more">Найдено ${items.length}. Введите название для точного поиска.</p>`:"");
+}
+  function foodCategoryButtons(){
+  const cats=[["herbalife","Herbalife"],["ordinary","Обычные"],["all","Все"],["mine","Мои"]];
+  return cats.map(([key,label])=>`<button type="button" data-action="foodCategory" data-category="${key}" class="${S.foodFilter===key?"active":""}" aria-pressed="${S.foodFilter===key}">${label}</button>`).join("");
+}
+  function foodPicker(){
+  const hint=S.mealType==="breakfast"?"Формула 1, Формула 3, алоэ, чай…":S.mealType==="snack3"?"Коллаген, вечерний коктейль, Nightworks…":"Продукт Herbalife или обычная еда…";
+  return `<div class="food-picker">
+    <span class="food-picker-label">Выбрать продукт или блюдо</span>
+    <button type="button" class="food-picker-trigger" data-action="toggleFoodSearch" aria-controls="foodPickerDropdown" aria-expanded="${S.foodOpen}"><span>${hint}</span><span class="food-picker-arrow">${S.foodOpen?"⌃":"⌄"}</span></button>
+    <div class="food-picker-dropdown" id="foodPickerDropdown" ${S.foodOpen?"":"hidden"}>
+      <label class="field"><span>Напишите название продукта</span><input id="foodSearch" type="search" placeholder="Например: Формула 1 или котлета" autocomplete="off" value="${esc(S.foodTerm)}"></label>
+      <div class="food-category-tabs" id="foodCategories">${foodCategoryButtons()}</div>
+      <div class="food-search-items" id="foodSearchResults">${foodSearchItems(S.foodTerm)}</div>
+    </div>
+  </div>`;
+}
   function foodSelectedItems(){
-    return S.foodSelection.map((food,index)=>`<div class="food-selected-row">
+  return S.foodSelection.map((food,index)=>{
+    if(food.unit==="serving"){
+      const amount=foodProteinValue(food);
+      return `<div class="food-selected-row food-selected-serving">
+        <div class="food-selected-head"><strong>${esc(food.name)}</strong><button type="button" class="food-remove" data-action="removeFood" data-index="${index}" aria-label="Убрать ${esc(food.name)}">×</button></div>
+        <div class="food-serving-controls">
+          <label><span>Порций</span><input class="food-serving-count" data-index="${index}" type="number" min=".1" max="100" step=".5" inputmode="decimal" value="${food.servings}"></label>
+          <label><span>Белок на 1 порцию, г</span><input class="food-serving-protein" data-index="${index}" type="number" min="0" max="300" step=".1" inputmode="decimal" placeholder="С упаковки" value="${Number.isFinite(food.proteinPerServing)?food.proteinPerServing:""}"></label>
+          <div class="food-serving-result"><span>Всего</span><b class="food-amount-protein">${amount===null?"—":amount.toLocaleString("ru-RU")+" г"}</b></div>
+        </div>
+      </div>`;
+    }
+    return `<div class="food-selected-row">
       <span class="food-name">${esc(food.name)}<small>${Number(food.protein).toLocaleString("ru-RU")} г белка / 100 г</small></span>
       <label><span>Граммы</span><input class="food-weight" type="number" inputmode="decimal" min="1" max="20000" step="1" value="${food.grams}" data-index="${index}" aria-label="Масса продукта ${esc(food.name)}"></label>
-      <b class="food-amount-protein">${(Math.round(food.protein*food.grams/10)/10).toLocaleString("ru-RU")} г</b>
+      <b class="food-amount-protein">${(foodProteinValue(food)||0).toLocaleString("ru-RU")} г</b>
       <button type="button" class="food-remove" data-action="removeFood" data-index="${index}" aria-label="Убрать ${esc(food.name)}">×</button>
-    </div>`).join("");
-  }
+    </div>`;
+  }).join("");
+}
   function refreshFoodCalculator(keepInputs=false){
-    const selected=document.getElementById("foodSelected");
-    if(selected&&!keepInputs)selected.innerHTML=foodSelectedItems();
-    if(selected&&keepInputs){
-      selected.querySelectorAll(".food-selected-row").forEach((row,index)=>{
-        const food=S.foodSelection[index];
-        if(food){const total=row.querySelector(".food-amount-protein");if(total)total.textContent=(Math.round(food.protein*food.grams/10)/10).toLocaleString("ru-RU")+" г";}
-      });
-    }
-    const result=document.getElementById("foodProteinTotal");
-    if(result)result.textContent=S.foodSelection.length?`Примерно ${proteinFromSelection().toLocaleString("ru-RU")} г белка в выбранных продуктах`:"Выберите продукты и укажите граммы";
-    if(!S.foodSelection.length)return;
-    const form=document.getElementById("mealForm");
-    if(!form)return;
-    const protein=form.elements.namedItem("protein");
-    if(protein)protein.value=String(proteinFromSelection());
-    const description=form.elements.namedItem("description");
-    if(description&&(!description.value.trim()||description.dataset.foodAuto==="1")){
-      description.value=S.foodSelection.map(f=>f.name+" — "+f.grams+" г").join("; ");
-      description.dataset.foodAuto="1";
-    }
+  const selected=document.getElementById("foodSelected");
+  if(selected&&!keepInputs)selected.innerHTML=foodSelectedItems();
+  if(selected&&keepInputs)selected.querySelectorAll(".food-selected-row").forEach((row,index)=>{
+    const value=foodProteinValue(S.foodSelection[index]);
+    const total=row.querySelector(".food-amount-protein");
+    if(total)total.textContent=value===null?"—":value.toLocaleString("ru-RU")+" г";
+  });
+  const form=document.getElementById("mealForm");
+  const protein=form?.elements.namedItem("protein");
+  const result=document.getElementById("foodProteinTotal");
+  const missing=missingBrandProteins();
+  if(result)result.textContent=missing.length?`Укажите белок по этикетке для ${missing.length} продукта(ов) Herbalife`:S.foodSelection.length?`Всего примерно ${proteinFromSelection().toLocaleString("ru-RU")} г белка`:"Выберите продукт через поиск выше";
+  if(protein&&!missing.length){
+    if(S.foodSelection.length){protein.value=String(proteinFromSelection());protein.dataset.foodAuto="1";}
+    else if(protein.dataset.foodAuto==="1"){protein.value="";protein.dataset.foodAuto="0";}
   }
+  const description=form?.elements.namedItem("description");
+  if(description&&(!description.value.trim()||description.dataset.foodAuto==="1")){
+    description.value=S.foodSelection.map(food=>food.unit==="serving"?`${food.name} — ${food.servings} порц.`:`${food.name} — ${food.grams} г`).join("; ");
+    description.dataset.foodAuto="1";
+  }
+}
+  function refreshFoodDropdown(){
+  const items=document.getElementById("foodSearchResults");
+  if(items)items.innerHTML=foodSearchItems(S.foodTerm);
+  const tabs=document.getElementById("foodCategories");
+  if(tabs)tabs.innerHTML=foodCategoryButtons();
+}
   async function loadPersonalFoods(){
-    if(!S.user||isCoachApp)return;
-    try{
-      const rows=await ok(db.from("nd_foods").select("id,name,protein_per_100g").eq("owner_id",S.user.id).order("name").limit(300));
-      S.foods=(rows||[]).filter(row=>row.protein_per_100g!=null);
-    }catch(error){
-      console.warn("Личные продукты пока недоступны",error);
-      S.foods=[];
-    }
-  }
+  if(!S.user||isCoachApp)return;
+  try{
+    const rows=await ok(db.from("nd_foods").select("id,name,protein_per_100g").eq("owner_id",S.user.id).order("name").limit(300));
+    S.foods=(rows||[]).filter(row=>row.protein_per_100g!=null);
+  }catch(error){console.warn("Личные продукты пока недоступны",error);S.foods=[];}
+}
   const ratings={good:"Хорошо",improve:"Улучшить",attention:"Внимание"};
   const icon=(name)=>'<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.55" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+({
     book:'<rect x="4" y="3.8" width="16" height="16.4" rx="1.8"/><path d="M8.5 3.8v16.4M11.5 8h5M11.5 12h5M11.5 16h3"/>',
@@ -132,7 +204,7 @@
     inbox:'<path d="M4 4h16v15H4V4Z"/><path d="M4 14h5l2 3h2l2-3h5"/>',
     refresh:'<path d="M20 7v5h-5"/><path d="M4 17v-5h5"/><path d="M5.5 9a7.2 7.2 0 0 1 12.6-2L20 12M4 12l1.9 5a7.2 7.2 0 0 0 12.6-2"/>'
   }[name]||'')+'</svg>';
-  const S={user:null,profile:null,people:{},consultants:[],clients:[],foods:[],foodSelection:[],mode:isCoachApp?"coach":"client",denied:false,deniedReason:"",consultantCode:null,signupPending:false,pushEnabled:false,tab:isCoachApp?"inbox":"diary",inboxFilter:"pending",inbox:[],submission:null,clientRequest:null,clientRequests:[],clientWeights:{},viewingClient:false,receivedDiary:false,receivedDiaryLoading:false,date:initialDate||localDate(),selected:null,day:null,meals:[],mealReviews:[],dayReviews:[],weights:[],photo:{},openMeal:false,mealType:"breakfast",authMode:"login",recovery:recoveryFromUrl,busy:false,navSeq:0};
+  const S={user:null,profile:null,people:{},consultants:[],clients:[],foods:[],foodSelection:[],foodOpen:false,foodFilter:"herbalife",foodTerm:"",mode:isCoachApp?"coach":"client",denied:false,deniedReason:"",consultantCode:null,signupPending:false,pushEnabled:false,tab:isCoachApp?"inbox":"diary",inboxFilter:"pending",inbox:[],submission:null,clientRequest:null,clientRequests:[],clientWeights:{},viewingClient:false,receivedDiary:false,receivedDiaryLoading:false,date:initialDate||localDate(),selected:null,day:null,meals:[],mealReviews:[],dayReviews:[],weights:[],photo:{},openMeal:false,mealType:"breakfast",authMode:"login",recovery:recoveryFromUrl,busy:false,navSeq:0};
   const esc=x=>String(x??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   const num=x=>Number(x||0);
   const cleanName=x=>/^(?:phone[._ -]?[0-9+]+|[+0-9][0-9 .-]{7,})$/i.test(String(x||""))?"":String(x||"");
