@@ -91,7 +91,7 @@
     if(!term&&S.foodFilter==="herbalife")return food.source==="Herbalife";
     if(!term&&S.foodFilter==="ordinary")return food.source==="Ориентир";
     if(!term&&S.foodFilter==="mine")return food.source==="Мой продукт";
-    const hay=foodKey(food.name+" "+(food.aliases||"")+" "+(food.note||"")+" "+food.source);
+    const hay=foodKey(food.name+" "+(food.aliases||"")+" "+(food.note||"")+" "+food.source+(food.source==="Herbalife"?" гербалайф":""));
     return tokens.every(t=>hay.includes(t));
   });
   items.sort((a,b)=>{
@@ -326,7 +326,7 @@
     const reviews=S.mealReviews.filter(r=>r.meal_id===m.id);
     let h=`<div class="food-row">${S.photo[m.id]?`<img alt="Фото еды" loading="lazy" src="${esc(S.photo[m.id])}">`:'<div class="photo-none">Без фото</div>'}<div class="food-body"><small>${esc(fmt(m.eaten_at)||"—")}</small><strong>${esc(m.description)}</strong><span>${m.portion_g!=null?`${esc(m.portion_g)} г · `:""}${m.protein_g!=null?`${esc(m.protein_g)} г белка`:""}</span></div>${S.mode==="client"?`<button class="delete-meal" data-action="deleteMeal" data-id="${esc(m.id)}" aria-label="Удалить">×</button>`:""}</div>`;
     const ingredients=Array.isArray(m.food_breakdown)?m.food_breakdown:[];
-    if(ingredients.length)h+=`<div class="meal-ingredients"><span>Из чего рассчитан белок:</span>${ingredients.map(food=>`<span>${esc(food.name)} · ${esc(food.grams)} г · ${esc(food.protein_g)} г белка</span>`).join("")}</div>`;
+    if(ingredients.length)h+=`<div class="meal-ingredients"><span>Из чего рассчитан белок:</span>${ingredients.map(food=>`<span>${esc(food.name)} · ${food.portions!=null?esc(food.portions)+" порц.":esc(food.grams)+" г"} · ${esc(food.protein_g)} г белка</span>`).join("")}</div>`;
     for(const r of reviews)h+=`<div class="review-label ${esc(r.rating)}"><b>${esc(ratings[r.rating]||"Оценка")}</b>${r.comment?`<span>${esc(r.comment)}</span>`:""}</div>`;
     if(S.mode==="coach"){
       const own=reviews.find(r=>r.consultant_id===S.user.id);
@@ -900,6 +900,7 @@
         if(missingBrandProteins().length)throw Error("Укажите белок на порцию по этикетке каждого продукта Herbalife");
         if(S.foodSelection.some(food=>food.unit==="serving"&&(food.proteinPerServing<0||food.proteinPerServing>300)))
           throw Error("Белок на порцию должен быть от 0 до 300 г");
+        if(S.foodSelection.length&&proteinFromSelection()>3000)throw Error("Слишком большое значение белка. Проверьте порции.");
         const processed=await photoToJpeg(file);
         const day=S.day||await ok(db.from("nd_days").insert({client_id:S.user.id,log_date:S.date}).select().single());
         const food_breakdown=S.foodSelection.map(food=>({
@@ -957,7 +958,7 @@
       if(!chosen)return;
       if(S.foodSelection.length>=30){notify("Можно выбрать до 30 продуктов");return;}
       const already=S.foodSelection.find(item=>item.id===chosen.id);
-      if(already){notify("Этот продукт уже добавлен. Измените его граммы.");return;}
+      if(already){notify("Этот продукт уже добавлен. Измените количество или порции.");return;}
       S.foodSelection.push(chosen.unit==="serving"?{...chosen,servings:1,proteinPerServing:null}:{...chosen,grams:100});
       refreshFoodCalculator();
       S.foodOpen=false;
