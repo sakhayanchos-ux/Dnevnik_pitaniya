@@ -95,9 +95,32 @@
     ...S.foods.map(f=>({id:"mine:"+f.id,name:f.name,protein:Number(f.protein_per_100g),source:"Мой продукт",unit:"g",group:"other",note:"По данным пользователя"}))
   ];
   const foodById=id=>foodCatalog().find(f=>f.id===id);
-  const foodProteinValue=food=>food.unit==="serving"
-    ? (Number.isFinite(food.proteinPerServing)?Math.round(food.proteinPerServing*food.servings*10)/10:null)
-    : Math.round(food.protein*food.grams/10)/10;
+
+  const macro2=n=>Math.round(n*100)/100;
+  const macroText=n=>Number(n).toLocaleString("ru-RU",{maximumFractionDigits:2});
+  const foodMacroValue=(food,metric)=>{
+    if(food.unit==="serving"){
+      const prop={protein:"proteinPerServing",fat:"fatPerServing",carbs:"carbsPerServing",kcal:"kcalPerServing"}[metric];
+      const per=food[prop];
+      return Number.isFinite(per)&&Number.isFinite(food.servings)?macro2(per*food.servings):null;
+    }
+    if(metric==="protein")return macro2(food.protein*food.grams/100);
+    return null;
+  };
+  const foodProteinValue=food=>foodMacroValue(food,"protein");
+  const foodMacroTotal=metric=>{
+    if(!S.foodSelection.length||S.foodSelection.some(food=>foodMacroValue(food,metric)===null))return null;
+    return macro2(S.foodSelection.reduce((sum,food)=>sum+foodMacroValue(food,metric),0));
+  };
+  const brandMacrosHTML=food=>{
+    const kcal=foodMacroValue(food,"kcal"),fat=foodMacroValue(food,"fat"),carbs=foodMacroValue(food,"carbs"),protein=foodMacroValue(food,"protein");
+    if(kcal===null&&fat===null&&carbs===null&&protein===null)return '<span class="macro-missing">БЖУ не заполнены в справочнике — проверьте упаковку.</span>';
+    return '<span class="macro-pill">Б '+(protein===null?"—":macroText(protein))+' г</span>'+
+      '<span class="macro-pill">Ж '+(fat===null?"—":macroText(fat))+' г</span>'+
+      '<span class="macro-pill">У '+(carbs===null?"—":macroText(carbs))+' г</span>'+
+      '<span class="macro-pill">'+(kcal===null?"—":macroText(kcal))+' ккал</span>';
+  };
+
   const missingBrandProteins=()=>S.foodSelection.filter(f=>f.unit==="serving"&&!Number.isFinite(f.proteinPerServing));
   const proteinFromSelection=()=>Math.round(S.foodSelection.reduce((sum,f)=>sum+(foodProteinValue(f)||0),0)*10)/10;
   const mealFoodMatch=food=>{
@@ -133,7 +156,7 @@
   if(!shown.length)return '<p class="food-empty">Не нашли продукт? Добавьте свой по этикетке ниже.</p>';
   return shown.map(food=>{
     const brand=food.source==="Herbalife";
-    return `<button type="button" class="food-option ${brand?"is-herbalife":""}" data-action="chooseFood" data-food="${esc(food.id)}"><span>${esc(food.name)}<small>${brand?"Herbalife · белок по этикетке":food.source==="Мой продукт"?"Мой справочник":food.note}</small></span><b>${brand?"По упаковке":Number(food.protein).toLocaleString("ru-RU")+" г / 100 г"}</b></button>`;
+    return `<button type="button" class="food-option ${brand?"is-herbalife":""}" data-action="chooseFood" data-food="${esc(food.id)}"><span>${esc(food.name)}<small>${brand?(food.sourceQuality==="missing"||food.sourceQuality==="i"?"Herbalife · уточните по упаковке":"Herbalife · "+macroText(food.proteinPerServing)+" г белка на порцию"):food.source==="Мой продукт"?"Мой справочник":food.note}</small></span><b>${brand?(food.kcalPerServing===null?"По упаковке":macroText(food.kcalPerServing)+" ккал"):(Number(food.protein).toLocaleString("ru-RU")+" г / 100 г")}</b></button>`;
   }).join("")+(items.length>shown.length?`<p class="food-more">Найдено ${items.length}. Введите название для точного поиска.</p>`:"");
 }
   function foodCategoryButtons(){
@@ -156,19 +179,24 @@
   return S.foodSelection.map((food,index)=>{
     if(food.unit==="serving"){
       const amount=foodProteinValue(food);
+      const known=Number.isFinite(food.proteinPerServing)&&food.sourceQuality!=="missing"&&food.sourceQuality!=="i";
+      const quality=food.sourceQuality==="d"?"Расчётные значения из сохранённого справочника":food.sourceQuality==="i"?"В справочнике неполные БЖУ":known?"Данные из вашего справочника КБЖУ":"Данные с упаковки";
       return `<div class="food-selected-row food-selected-serving">
         <div class="food-selected-head"><strong>${esc(food.name)}</strong><button type="button" class="food-remove" data-action="removeFood" data-index="${index}" aria-label="Убрать ${esc(food.name)}">×</button></div>
         <div class="food-serving-controls">
-          <label><span>Порций</span><input class="food-serving-count" data-index="${index}" type="number" min="0.1" max="100" step="any" inputmode="decimal" value="${food.servings}"></label>
-          <label><span>Белок на 1 порцию, г</span><input class="food-serving-protein" data-index="${index}" type="number" min="0" max="300" step=".1" inputmode="decimal" placeholder="С упаковки" value="${Number.isFinite(food.proteinPerServing)?food.proteinPerServing:""}"></label>
-          <div class="food-serving-result"><span>Всего</span><b class="food-amount-protein">${amount===null?"—":amount.toLocaleString("ru-RU")+" г"}</b></div>
+          <label><span>Порций</span><input class="food-serving-count" data-index="${index}" type="number" min=".1" max="100" step="any" inputmode="decimal" value="${food.servings}"></label>
+          ${known?`<div class="food-serving-known"><span>Белок на 1 порцию</span><b>${macroText(food.proteinPerServing)} г</b></div>`:
+            `<label><span>Белок на 1 порцию, г</span><input class="food-serving-protein" data-index="${index}" type="number" min="0" max="300" step="any" inputmode="decimal" placeholder="С упаковки" value="${Number.isFinite(food.proteinPerServing)?food.proteinPerServing:""}"></label>`}
+          <div class="food-serving-result"><span>Всего белка</span><b class="food-amount-protein">${amount===null?"—":macroText(amount)+" г"}</b></div>
         </div>
+        <div class="food-macro-pills">${brandMacrosHTML(food)}</div>
+        <p class="food-source-quality">${esc(quality)}. ${food.sourceQuality==="d"?"Уточните значения по этикетке.":food.referenceId?"Без молока и других добавок; их учитывайте отдельно.":""}</p>
       </div>`;
     }
     return `<div class="food-selected-row">
-      <span class="food-name">${esc(food.name)}<small>${Number(food.protein).toLocaleString("ru-RU")} г белка / 100 г</small></span>
-      <label><span>Граммы</span><input class="food-weight" type="number" inputmode="decimal" min="1" max="20000" step="1" value="${food.grams}" data-index="${index}" aria-label="Масса продукта ${esc(food.name)}"></label>
-      <b class="food-amount-protein">${(foodProteinValue(food)||0).toLocaleString("ru-RU")} г</b>
+      <span class="food-name">${esc(food.name)}<small>${macroText(food.protein)} г белка / 100 г</small></span>
+      <label><span>Граммы</span><input class="food-weight" type="number" inputmode="decimal" min="1" max="20000" step="any" value="${food.grams}" data-index="${index}" aria-label="Масса продукта ${esc(food.name)}"></label>
+      <b class="food-amount-protein">${macroText(foodProteinValue(food)||0)} г</b>
       <button type="button" class="food-remove" data-action="removeFood" data-index="${index}" aria-label="Убрать ${esc(food.name)}">×</button>
     </div>`;
   }).join("");
@@ -177,15 +205,31 @@
   const selected=document.getElementById("foodSelected");
   if(selected&&!keepInputs)selected.innerHTML=foodSelectedItems();
   if(selected&&keepInputs)selected.querySelectorAll(".food-selected-row").forEach((row,index)=>{
-    const value=foodProteinValue(S.foodSelection[index]);
+    const item=S.foodSelection[index];
+    if(!item)return;
+    const value=foodProteinValue(item);
     const total=row.querySelector(".food-amount-protein");
-    if(total)total.textContent=value===null?"—":value.toLocaleString("ru-RU")+" г";
+    if(total)total.textContent=value===null?"—":macroText(value)+" г";
+    const pills=row.querySelector(".food-macro-pills");
+    if(pills&&item.unit==="serving")pills.innerHTML=brandMacrosHTML(item);
   });
   const form=document.getElementById("mealForm");
   const protein=form?.elements.namedItem("protein");
   const result=document.getElementById("foodProteinTotal");
   const missing=missingBrandProteins();
-  if(result)result.textContent=missing.length?`Укажите белок по этикетке для ${missing.length} продукта(ов) Herbalife`:S.foodSelection.length?`Всего примерно ${proteinFromSelection().toLocaleString("ru-RU")} г белка`:"Выберите продукт через поиск выше";
+  if(result){
+    if(missing.length)result.textContent=`Для ${missing.length} продукта(ов) нет точного белка в справочнике: заполните по упаковке`;
+    else if(S.foodSelection.length)result.textContent=`Белок: ${macroText(proteinFromSelection())} г`;
+    else result.textContent="Выберите продукт через поиск выше";
+  }
+  const summary=document.getElementById("foodMacroTotals");
+  if(summary){
+    const fat=foodMacroTotal("fat"),carbs=foodMacroTotal("carbs"),kcal=foodMacroTotal("kcal");
+    summary.textContent=S.foodSelection.length?
+      (fat!==null&&carbs!==null&&kcal!==null
+        ? `Жиры ${macroText(fat)} г · Углеводы ${macroText(carbs)} г · ${macroText(kcal)} ккал`
+        : "Жиры, углеводы и калории будут показаны, когда для всех продуктов есть данные."):"";
+  }
   if(protein&&!missing.length){
     if(S.foodSelection.length){protein.value=String(proteinFromSelection());protein.dataset.foodAuto="1";}
     else if(protein.dataset.foodAuto==="1"){protein.value="";protein.dataset.foodAuto="0";}
@@ -440,6 +484,7 @@
           ${foodPicker()}
           <div id="foodSelected" class="food-selected">${foodSelectedItems()}</div>
           <p class="food-calculated" id="foodProteinTotal">Выберите продукт через поиск выше</p>
+          <p class="food-macro-totals" id="foodMacroTotals"></p>
           <p class="food-disclaimer">Расчёт приблизительный: белок зависит от рецепта и приготовления. Для продуктов Herbalife и других марок используйте данные своей упаковки.</p>
           <details class="add-own-food"><summary>Нет продукта? Добавить свой</summary>
             <p>Введите название и белок на 100 г по этикетке. Продукт появится в вашем личном справочнике.</p>
@@ -448,7 +493,7 @@
             <button class="secondary" data-action="saveOwnFood" type="button">Сохранить в справочник</button>
           </details>
         </div>
-        <div class="two">${formField("time","Время *","time",new Date().toTimeString().slice(0,5),"required")}${formField("protein","Белок, г *","number","","min=0 max=3000 step=.1 required")}</div>
+        <div class="two">${formField("time","Время *","time",new Date().toTimeString().slice(0,5),"required")}${formField("protein","Белок, г *","number","","min=0 max=3000 step=any required")}</div>
         ${formField("portion","Порция, г (по желанию)","number","","min=1 max=20000 step=.1")}
         <button class="primary full">Сохранить запись</button></form></section>`;
     }
@@ -983,7 +1028,7 @@
       if(S.foodSelection.length>=30){notify("Можно выбрать до 30 продуктов");return;}
       const already=S.foodSelection.find(item=>item.id===chosen.id);
       if(already){notify("Этот продукт уже добавлен. Измените количество или порции.");return;}
-      S.foodSelection.push(chosen.unit==="serving"?{...chosen,servings:1,proteinPerServing:null}:{...chosen,grams:100});
+      S.foodSelection.push(chosen.unit==="serving"?{...chosen,servings:1,proteinPerServing:chosen.proteinPerServing}:{...chosen,grams:100});
       refreshFoodCalculator();
       S.foodOpen=false;
       const picker=document.getElementById("foodPickerDropdown");
