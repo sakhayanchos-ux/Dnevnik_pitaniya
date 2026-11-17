@@ -875,7 +875,7 @@
         if(!S.user||isCoachApp)throw Error("Справочник доступен только клиенту");
         const form=document.getElementById("mealForm");
         if(!form)throw Error("Откройте добавление питания");
-        const name=v(form,"foodName").replace(/\\s+/g," ").trim();
+        const name=v(form,"foodName").replace(/\s+/g," ").trim();
         const protein=Number(v(form,"foodPer100").replace(",","."));
         if(name.length<2||name.length>120)throw Error("Укажите название продукта (2–120 символов)");
         if(v(form,"foodPer100")===""||!Number.isFinite(protein)||protein<0||protein>100)
