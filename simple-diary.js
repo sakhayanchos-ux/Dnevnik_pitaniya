@@ -409,14 +409,13 @@
         <label class="field"><span>Приём пищи</span><select name="type">${Object.entries(mealNames).map(([key,label])=>`<option value="${key}" ${key===S.mealType?"selected":""}>${label}</option>`).join("")}</select></label>
         <label class="field"><span>Фото еды *</span><input type="file" name="photo" accept="image/*" required></label><div id="photoPreview" class="photo-preview" hidden></div>
         <label class="field"><span>Что ели? *</span><textarea name="description" rows="2" maxlength="2000" placeholder="Например, котлета с макаронами" required></textarea></label>
-        ${S.mealType==="snack3"?`<div class="evening-presets"><span>Вечером часто выбирают:</span>${eveningOptions.map(name=>`<button type="button" data-action="eveningPreset" data-name="${esc(name)}">${esc(name)}</button>`).join("")}</div>`:""}
+
         <div class="food-calculator" id="foodCalculator">
           <h3>Рассчитать белок по продуктам</h3>
-          <p>Выбери продукты из блюда и укажи вес каждого. Например, котлета + макароны.</p>
-          <label class="field"><span>Поиск продуктов</span><input id="foodSearch" type="search" placeholder="Например: котлета, макароны, творог" autocomplete="off"></label>
-          <div class="food-search-items" id="foodSearchResults">${foodSearchItems()}</div>
+          <p>Продукты Herbalife — в первую очередь. Для обычной еды выберите ингредиенты и укажите граммы.</p>
+          ${foodPicker()}
           <div id="foodSelected" class="food-selected">${foodSelectedItems()}</div>
-          <p class="food-calculated" id="foodProteinTotal">Выберите продукты и укажите граммы</p>
+          <p class="food-calculated" id="foodProteinTotal">Выберите продукт через поиск выше</p>
           <p class="food-disclaimer">Расчёт приблизительный: белок зависит от рецепта и приготовления. Для продуктов Herbalife и других марок используйте данные своей упаковки.</p>
           <details class="add-own-food"><summary>Нет продукта? Добавить свой</summary>
             <p>Введите название и белок на 100 г по этикетке. Продукт появится в вашем личном справочнике.</p>
@@ -927,14 +926,38 @@
     const b=e.target.closest("[data-action]");if(!b)return;
     const action=b.dataset.action;
 
+    if(action==="toggleFoodSearch"){
+      S.foodOpen=!S.foodOpen;
+      const dropdown=document.getElementById("foodPickerDropdown");
+      if(dropdown)dropdown.hidden=!S.foodOpen;
+      b.setAttribute("aria-expanded",String(S.foodOpen));
+      const arrow=b.querySelector(".food-picker-arrow");
+      if(arrow)arrow.textContent=S.foodOpen?"⌃":"⌄";
+      if(S.foodOpen){refreshFoodDropdown();document.getElementById("foodSearch")?.focus();}
+      return;
+    }
+    if(action==="foodCategory"){
+      const category=b.dataset.category;
+      if(!["herbalife","ordinary","all","mine"].includes(category))return;
+      S.foodFilter=category;S.foodTerm="";
+      const search=document.getElementById("foodSearch");
+      if(search)search.value="";
+      refreshFoodDropdown();
+      return;
+    }
     if(action==="chooseFood"){
       const chosen=foodById(b.dataset.food);
       if(!chosen)return;
       if(S.foodSelection.length>=30){notify("Можно выбрать до 30 продуктов");return;}
       const already=S.foodSelection.find(item=>item.id===chosen.id);
       if(already){notify("Этот продукт уже добавлен. Измените его граммы.");return;}
-      S.foodSelection.push({...chosen,grams:100});
+      S.foodSelection.push(chosen.unit==="serving"?{...chosen,servings:1,proteinPerServing:null}:{...chosen,grams:100});
       refreshFoodCalculator();
+      S.foodOpen=false;
+      const picker=document.getElementById("foodPickerDropdown");
+      if(picker)picker.hidden=true;
+      const trigger=document.querySelector(".food-picker-trigger");
+      if(trigger){trigger.setAttribute("aria-expanded","false");const arrow=trigger.querySelector(".food-picker-arrow");if(arrow)arrow.textContent="⌄";}
       return;
     }
     if(action==="removeFood"){
@@ -1018,8 +1041,8 @@
       return;
     }
     if(action==="inboxFilter"){S.inboxFilter=b.dataset.filter;render();return}
-    if(action==="openMeal"){S.mealType=b.dataset.type||"breakfast";S.foodSelection=[];S.openMeal=true;render();document.getElementById("newEntry")?.scrollIntoView({behavior:"smooth",block:"start"});return}
-    if(action==="closeMeal"){S.openMeal=false;S.foodSelection=[];render();return}
+    if(action==="openMeal"){S.mealType=b.dataset.type||"breakfast";S.foodSelection=[];S.foodOpen=false;S.foodTerm="";S.foodFilter=foodDefaultCategory(S.mealType);S.openMeal=true;render();document.getElementById("newEntry")?.scrollIntoView({behavior:"smooth",block:"start"});return}
+    if(action==="closeMeal"){S.openMeal=false;S.foodSelection=[];S.foodOpen=false;render();return}
     guarded(async()=>{
       if(action==="logout"){if(S.user&&S.pushEnabled)await unsubscribePush();await db.auth.signOut();S.user=null;S.denied=false;S.deniedReason="";S.consultantCode=null;S.pushEnabled=false;render();return}
       if(action==="refreshClients"){await loadLinks();notify("Имена клиентов обновлены");return}
