@@ -169,7 +169,7 @@
     <span class="food-picker-label">Выбрать продукт или блюдо</span>
     <button type="button" class="food-picker-trigger" data-action="toggleFoodSearch" aria-controls="foodPickerDropdown" aria-expanded="${S.foodOpen}"><span>${hint}</span><span class="food-picker-arrow">${S.foodOpen?"⌃":"⌄"}</span></button>
     <div class="food-picker-dropdown" id="foodPickerDropdown" ${S.foodOpen?"":"hidden"}>
-      <label class="field"><span>Напишите название продукта</span><input id="foodSearch" type="search" placeholder="Например: Формула 1 или котлета" autocomplete="off" value="${esc(S.foodTerm)}"></label>
+      <label class="field"><span>Напишите название продукта</span><span class="food-search-control"><input id="foodSearch" type="text" inputmode="search" enterkeyhint="search" placeholder="Например: Формула 1 или котлета" autocomplete="off" value="${esc(S.foodTerm)}"><button type="button" class="food-search-clear" data-action="clearFoodSearch" aria-label="Очистить поиск" title="Очистить поиск" ${S.foodTerm?"":"hidden"}>×</button></span></label>
       <div class="food-category-tabs" id="foodCategories">${foodCategoryButtons()}</div>
       <div class="food-search-items" id="foodSearchResults">${foodSearchItems(S.foodTerm)}</div>
     </div>
@@ -455,7 +455,7 @@
       <div class="date-bar"><button data-action="prevDay">‹</button><label><span>Дата дневника</span><input type="date" id="diaryDate" value="${esc(S.date)}"></label><button data-action="nextDay">›</button></div>
       <div class="indicators">
         <section class="indicator"><div class="indicator-title"><strong>${icon("drop")} Вода</strong><span>${wp}%</span></div><div class="graphic">${glassSvg(wp)}<div><b>${water.toLocaleString("ru-RU")} мл</b><small>${wGoal?`из ${wGoal.toLocaleString("ru-RU")} мл`:"Укажите вес"}</small></div></div>
-          ${coach?"":`<div class="water-buttons"><button data-action="waterQuick" data-ml="100">+100</button><button data-action="waterQuick" data-ml="200">+200</button><button data-action="waterQuick" data-ml="250">+250</button></div><form id="waterForm" class="water-form"><input type="number" name="water" aria-label="Миллилитры за день" min="0" max="15000" value="${water}"><button class="secondary">Записать</button></form>`}
+          ${coach?"":`<div class="water-buttons"><button data-action="waterQuick" data-ml="100">+100</button><button data-action="waterQuick" data-ml="200">+200</button><button data-action="waterQuick" data-ml="250">+250</button></div><form id="waterForm" class="water-form"><input type="number" name="water" aria-label="Миллилитры за день" min="0" max="15000" placeholder="0" value=""><button class="secondary">Записать</button></form>`}
         </section>
         <section class="indicator"><div class="indicator-title"><strong>${icon("leaf")} Белок</strong><span>${pp}%</span></div><div class="graphic">${proteinSvg(pp)}<div><b>${protein} г</b><small>${pGoal?`из ${pGoal} г`:"Нет цели"}</small>${pGoal?`<small>Осталось ${Math.max(0,Math.round((pGoal-protein)*10)/10)} г</small>`:""}</div></div><p class="explain">Белок из записей о еде</p></section>
       </div>`;
@@ -954,7 +954,7 @@
         }
         notify("Консультант подключён");await loadLinks();return;
       }
-      if(f.id==="waterForm"){const water=Number(v(f,"water"));if(!Number.isInteger(water)||water<0||water>15000)throw Error("Проверьте количество воды");await saveWater(water);notify("Вода сохранена");return}
+      if(f.id==="waterForm"){const typed=v(f,"water").trim();if(typed==="")throw Error("Введите количество воды в миллилитрах");const water=Number(typed);if(!Number.isInteger(water)||water<0||water>15000)throw Error("Проверьте количество воды");await saveWater(water);notify("Вода сохранена");return}
       if(f.id==="dayForm"){
         await ok(db.from("nd_days").upsert({client_id:S.user.id,log_date:S.date,water_ml:num(S.day?.water_ml),activity_minutes:Number(v(f,"activity")||0),wake_time:v(f,"wake")||null,bedtime:v(f,"sleep")||null,wellbeing:v(f,"wellbeing")===""?null:Number(v(f,"wellbeing")),notes:v(f,"notes"),updated_at:new Date().toISOString()},{onConflict:"client_id,log_date"}));
         notify("Итоги дня сохранены");await loadDay();return;
@@ -1012,6 +1012,12 @@
 
     if(action==="toggleFoodSearch"){
       S.foodOpen=!S.foodOpen;
+      S.foodTerm="";
+      S.foodFilter=foodDefaultCategory(S.mealType);
+      const searchField=document.getElementById("foodSearch");
+      if(searchField)searchField.value="";
+      const clearSearch=document.querySelector(".food-search-clear");
+      if(clearSearch)clearSearch.hidden=true;
       const dropdown=document.getElementById("foodPickerDropdown");
       if(dropdown)dropdown.hidden=!S.foodOpen;
       b.setAttribute("aria-expanded",String(S.foodOpen));
@@ -1020,12 +1026,24 @@
       if(S.foodOpen){refreshFoodDropdown();document.getElementById("foodSearch")?.focus();}
       return;
     }
+    if(action==="clearFoodSearch"){
+      S.foodTerm="";
+      S.foodFilter=foodDefaultCategory(S.mealType);
+      const search=document.getElementById("foodSearch");
+      if(search)search.value="";
+      b.hidden=true;
+      refreshFoodDropdown();
+      if(search)search.focus();
+      return;
+    }
     if(action==="foodCategory"){
       const category=b.dataset.category;
       if(!["herbalife","ordinary","all","mine"].includes(category))return;
       S.foodFilter=category;S.foodTerm="";
       const search=document.getElementById("foodSearch");
       if(search)search.value="";
+      const clearButton=document.querySelector(".food-search-clear");
+      if(clearButton)clearButton.hidden=true;
       refreshFoodDropdown();
       return;
     }
@@ -1037,6 +1055,13 @@
       if(already){notify("Этот продукт уже добавлен. Измените количество или порции.");return;}
       S.foodSelection.push(chosen.unit==="serving"?{...chosen,servings:1,proteinPerServing:chosen.proteinPerServing}:{...chosen,grams:100});
       refreshFoodCalculator();
+      S.foodTerm="";
+      S.foodFilter=foodDefaultCategory(S.mealType);
+      const search=document.getElementById("foodSearch");
+      if(search)search.value="";
+      const clearButton=document.querySelector(".food-search-clear");
+      if(clearButton)clearButton.hidden=true;
+      refreshFoodDropdown();
       S.foodOpen=false;
       const picker=document.getElementById("foodPickerDropdown");
       if(picker)picker.hidden=true;
@@ -1230,6 +1255,8 @@
     if(target.id==="foodSearch"){
       S.foodTerm=target.value;
       if(S.foodTerm.trim())S.foodFilter="all";
+      const clearButton=document.querySelector(".food-search-clear");
+      if(clearButton)clearButton.hidden=!Boolean(S.foodTerm);
       refreshFoodDropdown();
       return;
     }
