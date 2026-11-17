@@ -169,7 +169,7 @@
     <span class="food-picker-label">Выбрать продукт или блюдо</span>
     <button type="button" class="food-picker-trigger" data-action="toggleFoodSearch" aria-controls="foodPickerDropdown" aria-expanded="${S.foodOpen}"><span>${hint}</span><span class="food-picker-arrow">${S.foodOpen?"⌃":"⌄"}</span></button>
     <div class="food-picker-dropdown" id="foodPickerDropdown" ${S.foodOpen?"":"hidden"}>
-      <label class="field"><span>Напишите название продукта</span><span class="food-search-control"><input id="foodSearch" type="text" inputmode="search" enterkeyhint="search" placeholder="Например: Формула 1 или котлета" autocomplete="off" value="${esc(S.foodTerm)}"><button type="button" class="food-search-clear" data-action="clearFoodSearch" aria-label="Очистить поиск" title="Очистить поиск" ${S.foodTerm?"":"hidden"}>×</button></span></label>
+      <div class="field food-search-field"><label for="foodSearch">Напишите название продукта</label><span class="food-search-control"><input id="foodSearch" type="text" inputmode="search" enterkeyhint="search" placeholder="Например: Формула 1 или котлета" autocomplete="off" value="${esc(S.foodTerm)}"><button type="button" class="food-search-clear" data-action="clearFoodSearch" aria-label="Очистить поиск" title="Очистить поиск" ${S.foodTerm?"":"hidden"}>×</button></span></div>
       <div class="food-category-tabs" id="foodCategories">${foodCategoryButtons()}</div>
       <div class="food-search-items" id="foodSearchResults">${foodSearchItems(S.foodTerm)}</div>
     </div>
