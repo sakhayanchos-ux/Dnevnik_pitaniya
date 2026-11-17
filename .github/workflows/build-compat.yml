@@ -41,5 +41,9 @@ jobs:
           git add simple-diary.compat.js
           if ! git diff --cached --quiet; then
             git commit -m "Build Safari 12 compatible nutrition diary"
-            git push
+            # Another commit may land while this job installs dependencies.
+            # Rebase the generated file onto the current published branch.
+            git fetch origin main
+            git rebase origin/main
+            git push origin HEAD:main
           fi
