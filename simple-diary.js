@@ -176,7 +176,7 @@
   if(!shown.length)return '<p class="food-empty">Не нашли продукт? Добавьте свой по этикетке ниже.</p>';
   return shown.map(food=>{
     const brand=food.source==="Herbalife";
-    return `<button type="button" class="food-option ${brand?"is-herbalife":""}" data-action="chooseFood" data-food="${esc(food.id)}"><span>${esc(food.name)}<small>${brand?(food.sourceQuality==="missing"||food.sourceQuality==="i"?"Herbalife · уточните по упаковке":"Herbalife · "+macroText(food.proteinPerServing)+" г белка на порцию"):food.source==="Мой продукт"?"Мой справочник":food.note}</small></span><b>${brand?(food.kcalPerServing===null?"По упаковке":macroText(food.kcalPerServing)+" ккал"):(Number(food.protein).toLocaleString("ru-RU")+" г / 100 г")}</b></button>`;
+    return `<button type="button" class="food-option ${brand?"is-herbalife":""}" data-action="chooseFood" data-food="${esc(food.id)}"><span>${esc(food.name)}<small>${brand?(food.scoopsPerServing!=null?(food.proteinPerServing!=null?"Herbalife · Б "+macroText(food.proteinPerServing)+" г на "+macroText(food.scoopsPerServing)+" мерн. лож.":"Herbalife · "+macroText(food.scoopsPerServing)+" лож. на порцию"):"Herbalife · настройте мерные ложки"):food.source==="Мой продукт"?"Мой справочник":food.note}</small></span><b>${brand?(food.kcalPerServing===null?"По упаковке":macroText(food.kcalPerServing)+" ккал"):(Number(food.protein).toLocaleString("ru-RU")+" г / 100 г")}</b></button>`;
   }).join("")+(items.length>shown.length?`<p class="food-more">Найдено ${items.length}. Введите название для точного поиска.</p>`:"");
 }
   function foodCategoryButtons(){
