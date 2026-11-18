@@ -65,6 +65,7 @@
   const knownScoopRatio=(id,name,ref)=>{
     if(ref?.unit&&/^1\s+ложк/i.test(ref.unit))return 1;
     if(ref?.id==="coffee"||name.startsWith("Протеиновый кофе"))return 2;
+    if(ref?.id==="f3"||name.startsWith("Формула 3 —"))return 1;
     if(ref?.id==="evening"||name==="Формула 1 — вечерний коктейль")return 3;
     if(ref?.id?.startsWith("f1-")||name.startsWith("Формула 1 —"))return 3;
     return null;
@@ -199,17 +200,24 @@
     if(food.unit==="serving"){
       const amount=foodProteinValue(food);
       const known=Number.isFinite(food.proteinPerServing)&&food.sourceQuality!=="missing"&&food.sourceQuality!=="i";
+      const knownRatio=Number.isFinite(food.scoopsPerServing)&&food.scoopsPerServing>0;
+      const ratio=knownRatio?macroText(food.scoopsPerServing):"";
       const quality=food.sourceQuality==="d"?"Расчётные значения из сохранённого справочника":food.sourceQuality==="i"?"В справочнике неполные БЖУ":known?"Данные из вашего справочника КБЖУ":"Данные с упаковки";
       return `<div class="food-selected-row food-selected-serving">
         <div class="food-selected-head"><strong>${esc(food.name)}</strong><button type="button" class="food-remove" data-action="removeFood" data-index="${index}" aria-label="Убрать ${esc(food.name)}">×</button></div>
         <div class="food-serving-controls">
-          <label><span>Порций</span><input class="food-serving-count" data-index="${index}" type="number" min=".1" max="100" step="any" inputmode="decimal" value="${food.servings}"></label>
-          ${known?`<div class="food-serving-known"><span>Белок на 1 порцию</span><b>${macroText(food.proteinPerServing)} г</b></div>`:
-            `<label><span>Белок на 1 порцию, г</span><input class="food-serving-protein" data-index="${index}" type="number" min="0" max="300" step="any" inputmode="decimal" placeholder="С упаковки" value="${Number.isFinite(food.proteinPerServing)?food.proteinPerServing:""}"></label>`}
+          <label><span>Ложки</span><input class="food-scoop-count" data-index="${index}" type="number" min=".1" max="1000" step="any" inputmode="decimal" value="${food.spoons}"></label>
+          ${knownRatio?`<div class="food-serving-known"><span>Белок на ${ratio} лож.</span><b>${known?macroText(food.proteinPerServing)+" г":"По упаковке"}</b></div>`:
+            `<label><span>Ложек в порции</span><input class="food-scoop-ratio" data-index="${index}" type="number" min=".1" max="1000" step="any" inputmode="decimal" placeholder="С этикетки" value=""></label>`}
           <div class="food-serving-result"><span>Всего белка</span><b class="food-amount-protein">${amount===null?"—":macroText(amount)+" г"}</b></div>
         </div>
+        ${knownRatio?`<details class="food-scoop-custom"><summary>Норма: ${ratio} мерн. лож. на порцию · изменить</summary><label>Ложек на порцию с вашей упаковки
+          <input class="food-scoop-ratio" data-index="${index}" type="number" min=".1" max="1000" step="any" inputmode="decimal" value="${food.scoopsPerServing}"></label></details>`:
+          '<p class="food-scoop-warning">Для этого продукта в справочнике не указано количество мерных ложек в одной порции. Введите его по упаковке один раз — сохраним для следующих записей.</p>'}
+        ${!known?`<label class="food-scoop-protein">Белок на 1 порцию, г
+          <input class="food-serving-protein" data-index="${index}" type="number" min="0" max="300" step="any" inputmode="decimal" placeholder="С упаковки" value="${Number.isFinite(food.proteinPerServing)?food.proteinPerServing:""}"></label>`:""}
         <div class="food-macro-pills">${brandMacrosHTML(food)}</div>
-        <p class="food-source-quality">${esc(quality)}. ${food.sourceQuality==="d"?"Уточните значения по этикетке.":food.referenceId?"Без молока и других добавок; их учитывайте отдельно.":""}</p>
+        <p class="food-source-quality">${esc(quality)}. ${food.sourceQuality==="d"?"Уточните значения по этикетке.":food.referenceId?"Добавки (например, молоко) добавляйте отдельно.":""}</p>
       </div>`;
     }
     return `<div class="food-selected-row">
@@ -255,7 +263,7 @@
   }
   const description=form?.elements.namedItem("description");
   if(description&&(!description.value.trim()||description.dataset.foodAuto==="1")){
-    description.value=S.foodSelection.map(food=>food.unit==="serving"?`${food.name} — ${food.servings} порц.`:`${food.name} — ${food.grams} г`).join("; ");
+    description.value=S.foodSelection.map(food=>food.unit==="serving"?`${food.name} — ${food.spoons} мерн. лож.`:`${food.name} — ${food.grams} г`).join("; ");
     description.dataset.foodAuto="1";
   }
 }
@@ -1078,8 +1086,8 @@
       if(!chosen)return;
       if(S.foodSelection.length>=30){notify("Можно выбрать до 30 продуктов");return;}
       const already=S.foodSelection.find(item=>item.id===chosen.id);
-      if(already){notify("Этот продукт уже добавлен. Измените количество или порции.");return;}
-      S.foodSelection.push(chosen.unit==="serving"?{...chosen,servings:1,proteinPerServing:chosen.proteinPerServing}:{...chosen,grams:100});
+      if(already){notify("Этот продукт уже добавлен. Измените количество ложек.");return;}
+      S.foodSelection.push(chosen.unit==="serving"?{...chosen,spoons:chosen.scoopsPerServing??1,scoopsPerServing:chosen.scoopsPerServing,proteinPerServing:chosen.proteinPerServing}:{...chosen,grams:100});
       refreshFoodCalculator();
       S.foodTerm="";
       S.foodFilter=foodDefaultCategory(S.mealType);
