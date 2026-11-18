@@ -60,9 +60,20 @@
     ({id,name,cat,unit,kcal,protein,fat,carbs,quality}));
   const herbalifeRefById=Object.fromEntries(herbalifeReference.map(row=>[row.id,row]));
   const featuredReferences=["f1-vanilla","f1-chocolate","f1-strawberry","f1-cookie","f1-melon","f1-coconut","f1-mango","f1-banana",null,"f1-chicken",null,"evening","f3","coffee",null,"aloe-classic","aloe-mango","aloe-cran","tea-classic","tea-lemon",null,"tea-rasp","tea-mango","nrg","collagen","niteworks","nightmode","cr7","liftoff","greenmax","immune","oat-apple","microbiotic","rebuild","bar-lemon","h24-cookie","express-cran"];
+  // Scoop ratios are only prefilled where our saved product/portion catalogs
+  // explicitly establish them. Never assume 3 spoons for every product.
+  const knownScoopRatio=(id,name,ref)=>{
+    if(ref?.unit&&/^1\s+ложк/i.test(ref.unit))return 1;
+    if(ref?.id==="coffee"||name.startsWith("Протеиновый кофе"))return 2;
+    if(ref?.id==="evening"||name==="Формула 1 — вечерний коктейль")return 3;
+    if(ref?.id?.startsWith("f1-")||name.startsWith("Формула 1 —"))return 3;
+    return null;
+  };
   const makeBrand=(id,name,group,aliases,ref)=>{
     const hasMacros=!!ref&&ref.quality!=="i";
+    const scoopRatio=knownScoopRatio(id,name,ref);
     return {id:"hl:"+id,name,group,aliases,source:"Herbalife",unit:"serving",
+      scoopsPerServing:scoopRatio,scoopRatioVerified:scoopRatio!==null,
       servingUnit:ref?.unit||"1 порция",referenceId:ref?.id||null,
       sourceQuality:ref?ref.quality||"saved":'missing',
       protein:hasMacros?ref.protein:null,
@@ -89,7 +100,9 @@
   const foodKey=x=>String(x||"").toLocaleLowerCase("ru-RU").replace(/ё/g,"е").trim();
   const foodDefaultCategory=meal=>["breakfast","snack1","snack2","snack3"].includes(meal)?"herbalife":"ordinary";
   const foodCatalog=()=>[
-    ...herbalifeFoods,
+    ...herbalifeFoods.map(food=>({
+      ...food,scoopsPerServing:S.scoopSettings[food.id]??food.scoopsPerServing
+    })),
     ...commonFoods.map(f=>({...f,unit:"g",group:/яйц|омлет|каша|творог|молок|сыр|йогурт|кефир|хлеб/i.test(f.name)?"breakfast":/суп|котлет|макарон|гречка|рис|говядина|куриная грудка/i.test(f.name)?"lunch":"snack"})),
     ...extraOrdinaryFoods,
     ...S.foods.map(f=>({id:"mine:"+f.id,name:f.name,protein:Number(f.protein_per_100g),source:"Мой продукт",unit:"g",group:"other",note:"По данным пользователя"}))
@@ -98,11 +111,15 @@
 
   const macro2=n=>Math.round(n*100)/100;
   const macroText=n=>Number(n).toLocaleString("ru-RU",{maximumFractionDigits:2});
+  const servingsFromSpoons=food=>
+    food.unit==="serving"&&Number.isFinite(food.spoons)&&
+    Number.isFinite(food.scoopsPerServing)&&food.scoopsPerServing>0
+      ? food.spoons/food.scoopsPerServing:null;
   const foodMacroValue=(food,metric)=>{
     if(food.unit==="serving"){
       const prop={protein:"proteinPerServing",fat:"fatPerServing",carbs:"carbsPerServing",kcal:"kcalPerServing"}[metric];
-      const per=food[prop];
-      return Number.isFinite(per)&&Number.isFinite(food.servings)?macro2(per*food.servings):null;
+      const per=food[prop],servings=servingsFromSpoons(food);
+      return Number.isFinite(per)&&servings!==null?macro2(per*servings):null;
     }
     if(metric==="protein")return macro2(food.protein*food.grams/100);
     return null;
@@ -121,6 +138,8 @@
       '<span class="macro-pill">'+(kcal===null?"—":macroText(kcal))+' ккал</span>';
   };
 
+  const missingScoopRatios=()=>S.foodSelection.filter(f=>f.unit==="serving"&&
+    (!Number.isFinite(f.scoopsPerServing)||f.scoopsPerServing<=0));
   const missingBrandProteins=()=>S.foodSelection.filter(f=>f.unit==="serving"&&!Number.isFinite(f.proteinPerServing));
   const proteinFromSelection=()=>Math.round(S.foodSelection.reduce((sum,f)=>sum+(foodProteinValue(f)||0),0)*10)/10;
   const mealFoodMatch=food=>{
@@ -253,6 +272,13 @@
     S.foods=(rows||[]).filter(row=>row.protein_per_100g!=null);
   }catch(error){console.warn("Личные продукты пока недоступны",error);S.foods=[];}
 }
+  async function loadScoopSettings(){
+    if(!S.user||isCoachApp)return;
+    try{
+      const rows=await ok(db.from("nd_scoop_settings").select("product_id,scoops_per_serving").eq("user_id",S.user.id).limit(300));
+      S.scoopSettings=Object.fromEntries((rows||[]).map(item=>[item.product_id,Number(item.scoops_per_serving)]));
+    }catch(e){console.warn("Личные размеры ложек не загружены",e);S.scoopSettings={};}
+  }
   const ratings={good:"Хорошо",improve:"Улучшить",attention:"Внимание"};
   const icon=(name)=>'<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.55" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+({
     book:'<rect x="4" y="3.8" width="16" height="16.4" rx="1.8"/><path d="M8.5 3.8v16.4M11.5 8h5M11.5 12h5M11.5 16h3"/>',
@@ -272,7 +298,7 @@
     inbox:'<path d="M4 4h16v15H4V4Z"/><path d="M4 14h5l2 3h2l2-3h5"/>',
     refresh:'<path d="M20 7v5h-5"/><path d="M4 17v-5h5"/><path d="M5.5 9a7.2 7.2 0 0 1 12.6-2L20 12M4 12l1.9 5a7.2 7.2 0 0 0 12.6-2"/>'
   }[name]||'')+'</svg>';
-  const S={user:null,profile:null,people:{},consultants:[],clients:[],foods:[],foodSelection:[],foodOpen:false,foodFilter:"herbalife",foodTerm:"",mode:isCoachApp?"coach":"client",denied:false,deniedReason:"",consultantCode:null,signupPending:false,pushEnabled:false,tab:isCoachApp?"inbox":"diary",inboxFilter:"pending",inbox:[],submission:null,clientRequest:null,clientRequests:[],clientWeights:{},viewingClient:false,receivedDiary:false,receivedDiaryLoading:false,date:initialDate||localDate(),selected:null,day:null,meals:[],mealReviews:[],dayReviews:[],weights:[],photo:{},openMeal:false,mealType:"breakfast",authMode:"login",recovery:recoveryFromUrl,busy:false,navSeq:0};
+  const S={user:null,profile:null,people:{},consultants:[],clients:[],foods:[],scoopSettings:{},foodSelection:[],foodOpen:false,foodFilter:"herbalife",foodTerm:"",mode:isCoachApp?"coach":"client",denied:false,deniedReason:"",consultantCode:null,signupPending:false,pushEnabled:false,tab:isCoachApp?"inbox":"diary",inboxFilter:"pending",inbox:[],submission:null,clientRequest:null,clientRequests:[],clientWeights:{},viewingClient:false,receivedDiary:false,receivedDiaryLoading:false,date:initialDate||localDate(),selected:null,day:null,meals:[],mealReviews:[],dayReviews:[],weights:[],photo:{},openMeal:false,mealType:"breakfast",authMode:"login",recovery:recoveryFromUrl,busy:false,navSeq:0};
   const esc=x=>String(x??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   const num=x=>Number(x||0);
   const cleanName=x=>/^(?:phone[._ -]?[0-9+]+|[+0-9][0-9 .-]{7,})$/i.test(String(x||""))?"":String(x||"");
@@ -710,7 +736,7 @@
       p=await ok(db.from("nd_profiles").insert({id:user.id,display_name:clean}).select().single());
     }
     S.profile=p;
-    await loadPersonalFoods();
+    await Promise.all([loadPersonalFoods(),loadScoopSettings()]);
     if(supportsPush())void navigator.serviceWorker.register(SW_PATH,{scope:new URL("./",SW_PATH).pathname}).catch(e=>console.warn("Service worker unavailable",e));
     await loadLinks();
     if(isCoachApp){
