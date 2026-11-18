@@ -999,3 +999,46 @@ body[data-app="coach"] .container{max-width:720px}
   display:block;font-size:12px;font-weight:740;color:#655462;
   margin-bottom:7px;
 }
+
+
+/* Herbalife uses measuring spoons. Ratio is product-specific, never globally
+   assumed; spoon-to-serving corrections are saved for the signed-in client. */
+.food-scoop-custom{
+  margin-top:12px;padding:11px 10px;border:1px solid #e1e9ed;
+  border-radius:8px;background:#f9fcfd;
+}
+.food-scoop-custom summary{
+  color:#56788a;font-size:11px;line-height:1.5;font-weight:650;
+  cursor:pointer;touch-action:manipulation;
+}
+.food-scoop-custom[open] summary{margin-bottom:10px}
+.food-scoop-custom label,.food-scoop-protein{
+  display:flex;flex-direction:column;gap:6px;
+  color:#647b89;font-size:11px;line-height:1.45;
+}
+.food-scoop-custom input,.food-scoop-protein input{
+  background:#fff;min-height:42px;width:100%;
+  padding:9px 10px;font-size:14px;
+  border:1px solid #d4e2e8;border-radius:8px;
+}
+.food-scoop-protein{margin-top:10px}
+.food-scoop-warning{
+  font-size:11px;line-height:1.55;color:#7e6461;
+  background:#fff8f4;border:1px solid #f0ded3;
+  border-radius:8px;padding:9px 11px;margin:12px 0 0;
+}
+.food-serving-controls .food-scoop-count,
+.food-serving-controls .food-scoop-ratio{
+  font-variant-numeric:tabular-nums;
+  -webkit-appearance:none;
+  appearance:none;
+}
+.food-selected-serving .food-serving-known b{
+  white-space:normal;line-height:1.3;
+}
+@media(max-width:380px){
+  .food-serving-controls{grid-template-columns:69px minmax(0,1fr) 56px;gap:7px}
+  .food-serving-controls label>span,
+  .food-serving-known>span,
+  .food-serving-result>span{font-size:9.5px}
+}
