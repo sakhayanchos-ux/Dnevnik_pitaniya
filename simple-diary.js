@@ -245,7 +245,9 @@
   const result=document.getElementById("foodProteinTotal");
   const missing=missingBrandProteins();
   if(result){
-    if(missing.length)result.textContent=`Для ${missing.length} продукта(ов) нет точного белка в справочнике: заполните по упаковке`;
+    const missingRatios=missingScoopRatios();
+    if(missingRatios.length)result.textContent=`Для ${missingRatios.length} продукта(ов) укажите, сколько ложек составляет порцию (по упаковке)`;
+    else if(missing.length)result.textContent=`Для ${missing.length} продукта(ов) нет точного белка в справочнике: заполните по упаковке`;
     else if(S.foodSelection.length)result.textContent=`Белок: ${macroText(proteinFromSelection())} г`;
     else result.textContent="Выберите продукт через поиск выше";
   }
@@ -430,7 +432,7 @@
     const extraMacros=[m.fat_g!=null?"Ж "+macroText(m.fat_g)+" г":null,m.carbs_g!=null?"У "+macroText(m.carbs_g)+" г":null,m.kcal!=null?macroText(m.kcal)+" ккал":null].filter(Boolean);
     if(extraMacros.length)h+=`<div class="meal-macro-totals">${extraMacros.join(" · ")}</div>`;
     const ingredients=Array.isArray(m.food_breakdown)?m.food_breakdown:[];
-    if(ingredients.length)h+=`<div class="meal-ingredients"><span>Из чего рассчитан белок:</span>${ingredients.map(food=>`<span>${esc(food.name)} · ${food.portions!=null?esc(food.portions)+" порц.":esc(food.grams)+" г"} · Б ${food.protein_g==null?"—":macroText(food.protein_g)} г${food.fat_g!=null?" · Ж "+macroText(food.fat_g)+" г":""}${food.carbs_g!=null?" · У "+macroText(food.carbs_g)+" г":""}${food.kcal!=null?" · "+macroText(food.kcal)+" ккал":""}</span>`).join("")}</div>`;
+    if(ingredients.length)h+=`<div class="meal-ingredients"><span>Из чего рассчитан белок:</span>${ingredients.map(food=>`<span>${esc(food.name)} · ${food.spoons!=null?esc(food.spoons)+" мерн. лож.":food.portions!=null?esc(food.portions)+" порц.":esc(food.grams)+" г"} · Б ${food.protein_g==null?"—":macroText(food.protein_g)} г${food.fat_g!=null?" · Ж "+macroText(food.fat_g)+" г":""}${food.carbs_g!=null?" · У "+macroText(food.carbs_g)+" г":""}${food.kcal!=null?" · "+macroText(food.kcal)+" ккал":""}</span>`).join("")}</div>`;
     for(const r of reviews)h+=`<div class="review-label ${esc(r.rating)}"><b>${esc(ratings[r.rating]||"Оценка")}</b>${r.comment?`<span>${esc(r.comment)}</span>`:""}</div>`;
     if(S.mode==="coach"){
       const own=reviews.find(r=>r.consultant_id===S.user.id);
@@ -1000,18 +1002,23 @@
         if(S.foodSelection.length>30)throw Error("Слишком много продуктов в одном приёме пищи");
         if(S.foodSelection.some(food=>food.unit==="g"&&(!Number.isFinite(food.grams)||food.grams<=0||food.grams>20000)))
           throw Error("Укажите правильную массу каждого обычного продукта");
-        if(S.foodSelection.some(food=>food.unit==="serving"&&(!Number.isFinite(food.servings)||food.servings<=0||food.servings>100)))
-          throw Error("Укажите количество порций Herbalife");
+        if(S.foodSelection.some(food=>food.unit==="serving"&&(!Number.isFinite(food.spoons)||food.spoons<=0||food.spoons>1000)))
+          throw Error("Укажите количество мерных ложек Herbalife");
+        if(missingScoopRatios().length)throw Error("Для выбранных продуктов укажите количество ложек в одной порции по упаковке");
+        if(S.foodSelection.some(food=>food.unit==="serving"&&food.scoopsPerServing>1000))
+          throw Error("Количество ложек в одной порции должно быть не больше 1000");
         if(missingBrandProteins().length)throw Error("Укажите белок на порцию по этикетке каждого продукта Herbalife");
         if(S.foodSelection.some(food=>food.unit==="serving"&&(food.proteinPerServing<0||food.proteinPerServing>300)))
           throw Error("Белок на порцию должен быть от 0 до 300 г");
-        if(S.foodSelection.length&&proteinFromSelection()>3000)throw Error("Слишком большое значение белка. Проверьте порции.");
+        if(S.foodSelection.length&&proteinFromSelection()>3000)throw Error("Слишком большое значение белка. Проверьте количество ложек.");
         const processed=await photoToJpeg(file);
         const day=S.day||await ok(db.from("nd_days").insert({client_id:S.user.id,log_date:S.date}).select().single());
         const food_breakdown=S.foodSelection.map(food=>({
           name:food.name,
           grams:food.unit==="serving"?null:Number(food.grams),
-          portions:food.unit==="serving"?Number(food.servings):null,
+          spoons:food.unit==="serving"?Number(food.spoons):null,
+          spoons_per_portion:food.unit==="serving"?Number(food.scoopsPerServing):null,
+          portions:food.unit==="serving"?macro2(servingsFromSpoons(food)):null,
           protein_per_100g:food.unit==="serving"?null:Number(food.protein),
           protein_per_portion:food.unit==="serving"?Number(food.proteinPerServing):null,
           protein_g:foodProteinValue(food),
@@ -1294,11 +1301,12 @@
       refreshFoodDropdown();
       return;
     }
-    if(target.matches?.(".food-serving-count,.food-serving-protein")){
+    if(target.matches?.(".food-scoop-count,.food-scoop-ratio,.food-serving-protein")){
       const index=Number(target.dataset.index),item=S.foodSelection[index];
       if(!item||item.unit!=="serving")return;
       const value=target.value.trim()===""?null:Number(target.value);
-      if(target.classList.contains("food-serving-count"))item.servings=value===null?0:value;
+      if(target.classList.contains("food-scoop-count"))item.spoons=value===null?0:value;
+      else if(target.classList.contains("food-scoop-ratio"))item.scoopsPerServing=value;
       else item.proteinPerServing=value;
       refreshFoodCalculator(true);
       return;
@@ -1316,6 +1324,21 @@
     }
   });
   document.addEventListener("change",e=>{
+    if(e.target.matches?.(".food-scoop-ratio")){
+      const index=Number(e.target.dataset.index),item=S.foodSelection[index];
+      if(item?.unit==="serving"&&Number.isFinite(item.scoopsPerServing)&&item.scoopsPerServing>0&&item.scoopsPerServing<=1000&&S.user){
+        const ratio=item.scoopsPerServing;
+        S.scoopSettings[item.id]=ratio;
+        const userId=S.user.id,productId=item.id;
+        void (async()=>{
+          await ok(db.from("nd_scoop_settings").upsert({
+            user_id:userId,product_id:productId,scoops_per_serving:ratio,updated_at:new Date().toISOString()
+          },{onConflict:"user_id,product_id"}));
+        })().catch(showError);
+        refreshFoodCalculator();
+      }
+      return;
+    }
     if(e.target.matches?.('#mealForm select[name="type"]')){
       S.mealType=e.target.value;
       S.foodFilter=foodDefaultCategory(S.mealType);
