@@ -259,9 +259,12 @@
         ? `Жиры ${macroText(fat)} г · Углеводы ${macroText(carbs)} г · ${macroText(kcal)} ккал`
         : "Жиры, углеводы и калории будут показаны, когда для всех продуктов есть данные."):"";
   }
-  if(protein&&!missing.length){
-    if(S.foodSelection.length){protein.value=String(proteinFromSelection());protein.dataset.foodAuto="1";}
-    else if(protein.dataset.foodAuto==="1"){protein.value="";protein.dataset.foodAuto="0";}
+  if(protein){
+    if(!missing.length&&!missingScoopRatios().length&&S.foodSelection.length){
+      protein.value=String(proteinFromSelection());protein.dataset.foodAuto="1";
+    }else if(protein.dataset.foodAuto==="1"){
+      protein.value="";protein.dataset.foodAuto="0";
+    }
   }
   const description=form?.elements.namedItem("description");
   if(description&&(!description.value.trim()||description.dataset.foodAuto==="1")){
